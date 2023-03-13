@@ -72,12 +72,6 @@ def instantiate_object(
     object_location['position']['z'] -= definition.offset.z
 
     instance['debug']['offset'] = vars(definition.offset)
-    if definition.closedDimensions:
-        instance['debug']['closedDimensions'] = vars(
-            definition.closedDimensions
-        )
-    if definition.closedOffset:
-        instance['debug']['closedOffset'] = vars(definition.closedOffset)
 
     if 'rotation' not in object_location:
         object_location['rotation'] = {'x': 0, 'y': 0, 'z': 0}
@@ -183,3 +177,26 @@ def instantiate_object(
         instance['debug'][tags.role_to_tag(tags.ROLES.CONTAINER)] = True
 
     return instance
+
+
+def get_earliest_active_step(instance: Dict[str, Any]) -> int:
+    """Return the last step on which the given instance is scripted to move,
+    rotate, or have a force applied to it. Return -1 if the given instance is
+    never scripted to move, rotate, or has a force applied to it."""
+    actions = (
+        instance.get('forces', []) + instance.get('moves', []) +
+        instance.get('rotates', []) + instance.get('torques', [])
+    )
+    if not actions:
+        return -1
+    return min([item['stepBegin'] for item in actions])
+
+
+def get_last_move_or_rotate_step(instance: Dict[str, Any]) -> int:
+    """Return the last step on which the given instance is scripted to move or
+    rotate, or -1 if the given instance never moves or rotates. Does not work
+    with scripted forces."""
+    moves_or_rotates = instance.get('moves', []) + instance.get('rotates', [])
+    if not moves_or_rotates:
+        return -1
+    return max([item['stepEnd'] for item in moves_or_rotates])

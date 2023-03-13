@@ -74,8 +74,6 @@ class MaterialChoice(_DefinitionChoice):
 
 @dataclass(init=False)
 class SizeChoice(_DefinitionChoice):
-    closedDimensions: Vector3d = None
-    closedOffset: Vector3d = None
     dimensions: Vector3d = None
     enclosedAreas: List[Dict[str, Any]] = None
     mass: float = None
@@ -84,6 +82,7 @@ class SizeChoice(_DefinitionChoice):
     openAreas: List[Dict[str, Any]] = None
     placerOffsetX: List[float] = None
     placerOffsetY: List[float] = None
+    placerOffsetZ: List[float] = None
     positionY: float = None
     scale: Vector3d = None
     sideways: Dict[str, Any] = None
@@ -92,14 +91,13 @@ class SizeChoice(_DefinitionChoice):
     untrainedSize: bool = None
 
     DEBUG_PROPS = [
-        'closedDimensions',
-        'closedOffset',
         'dimensions',
         'enclosedAreas',
         'offset',
         'openAreas',
         'placerOffsetX',
         'placerOffsetY',
+        'placerOffsetZ',
         'positionY',
         'scale',
         'sideways',
@@ -111,8 +109,6 @@ class SizeChoice(_DefinitionChoice):
 
     def __init__(
         self,
-        closedDimensions: Vector3d = None,
-        closedOffset: Vector3d = None,
         dimensions: Vector3d = None,
         enclosedAreas: List[Dict[str, Any]] = None,
         mass: float = 1,
@@ -120,6 +116,7 @@ class SizeChoice(_DefinitionChoice):
         openAreas: List[Dict[str, Any]] = None,
         placerOffsetX: List[float] = None,
         placerOffsetY: List[float] = None,
+        placerOffsetZ: List[float] = None,
         positionY: float = 0,
         scale: Vector3d = None,
         sideways: Dict[str, Any] = None,
@@ -127,8 +124,6 @@ class SizeChoice(_DefinitionChoice):
         untrainedShape: bool = None,
         untrainedSize: bool = None
     ):
-        self.closedDimensions = closedDimensions
-        self.closedOffset = closedOffset
         self.dimensions = dimensions
         self.enclosedAreas = enclosedAreas or []
         self.mass = mass
@@ -136,6 +131,7 @@ class SizeChoice(_DefinitionChoice):
         self.openAreas = openAreas or []
         self.placerOffsetX = placerOffsetX
         self.placerOffsetY = placerOffsetY
+        self.placerOffsetZ = placerOffsetZ
         self.positionY = positionY
         self.scale = scale or Vector3d(x=1, y=1, z=1)
         self.sideways = sideways
@@ -228,8 +224,6 @@ class ObjectDefinition(
     def __init__(
         self,
         attributes: List[str] = None,
-        closedDimensions: Vector3d = None,
-        closedOffset: Vector3d = None,
         color: List[str] = None,
         difference: str = None,
         dimensions: Vector3d = None,
@@ -246,6 +240,7 @@ class ObjectDefinition(
         poly=None,
         placerOffsetX: List[float] = None,
         placerOffsetY: List[float] = None,
+        placerOffsetZ: List[float] = None,
         positionY: float = 0,
         prettyName: str = None,
         rotation: Vector3d = None,
@@ -266,8 +261,6 @@ class ObjectDefinition(
         chooseTypeList: List[TypeChoice] = None
     ):
         self.attributes = attributes or []
-        self.closedDimensions = closedDimensions
-        self.closedOffset = closedOffset
         self.color = color
         self.difference = difference
         self.dimensions = dimensions
@@ -282,6 +275,7 @@ class ObjectDefinition(
         self.poly = poly
         self.placerOffsetX = placerOffsetX
         self.placerOffsetY = placerOffsetY
+        self.placerOffsetZ = placerOffsetZ
         self.positionY = positionY
         self.prettyName = prettyName
         self.rotation = rotation or Vector3d()
@@ -897,6 +891,10 @@ class DefinitionDataset():
         if not unshuffled:
             random.shuffle(definitions)
         return definitions
+
+    def groups(self) -> List[ObjectDefinition]:
+        """Return a deep copy of all the definition groups in this dataset."""
+        return copy.deepcopy(list(self._definition_groups))
 
     def size(self) -> int:
         """Return the number of definitions in this dataset."""

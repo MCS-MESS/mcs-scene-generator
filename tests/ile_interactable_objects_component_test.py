@@ -2,23 +2,25 @@ import pytest
 
 from generator import FULL_TYPE_LIST, definitions, geometry, materials
 from ideal_learning_env import (
-    ILEConfigurationException,
     ILEException,
     ILESharedConfiguration,
+    InstanceDefinitionLocationTuple,
     InteractableObjectConfig,
     MinMaxInt,
     ObjectRepository,
     RandomInteractableObjectsComponent,
     RandomKeywordObjectsComponent,
-    SpecificInteractableObjectsComponent,
+    SpecificInteractableObjectsComponent
 )
 from ideal_learning_env.numerics import VectorFloatConfig
 
 from .ile_helper import (
     prior_scene,
     prior_scene_custom_size,
+    prior_scene_custom_start,
     prior_scene_with_target,
-    prior_scene_with_wall,
+    prior_scene_with_targets,
+    prior_scene_with_wall
 )
 
 
@@ -26,7 +28,10 @@ from .ile_helper import (
 def run_around_test():
     # Prepare test
     ObjectRepository.get_instance().clear()
-    ILESharedConfiguration.get_instance().set_excluded_shapes([])
+    # Exclude shapes that will automatically generate additional objects.
+    ILESharedConfiguration.get_instance().set_excluded_shapes(
+        ['lid', 'separate_container']
+    )
 
     # Run test
     yield
@@ -598,6 +603,11 @@ def test_specific_objects_position_relative_to_multiple_override():
 
 
 def test_specific_objects_array_multiple_scale():
+    # Do not use the separate_container, or else it will automatically add a
+    # separate lid to the scene, and our test cannot handle that edge case.
+    ILESharedConfiguration.get_instance().set_excluded_shapes(
+        ['separate_container']
+    )
     component = SpecificInteractableObjectsComponent({
         "specific_interactable_objects": [{
             "num": 1,
@@ -762,6 +772,139 @@ def test_specific_objects_array_multiple():
         assert obj['debug']['random_position']
 
 
+def test_specific_objects_num_targets_minus_zero_with_single_target():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': {
+            'num_targets_minus': 0,
+            'shape': 'duck_on_wheels'
+        }
+    })
+    assert isinstance(
+        component.specific_interactable_objects,
+        InteractableObjectConfig
+    )
+    config = component.specific_interactable_objects
+    assert config.num_targets_minus == 0
+    assert config.shape == 'duck_on_wheels'
+
+    scene = component.update_ile_scene(prior_scene_with_target())
+    assert isinstance(scene.objects, list)
+    assert len(scene.objects) == 2
+    assert scene.objects[0]['type'] == 'soccer_ball'
+    assert scene.objects[1]['type'] == 'duck_on_wheels'
+
+
+def test_specific_objects_num_targets_minus_one_with_single_target():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': {
+            'num_targets_minus': 1,
+            'shape': 'duck_on_wheels'
+        }
+    })
+    assert isinstance(
+        component.specific_interactable_objects,
+        InteractableObjectConfig
+    )
+    config = component.specific_interactable_objects
+    assert config.num_targets_minus == 1
+    assert config.shape == 'duck_on_wheels'
+
+    scene = component.update_ile_scene(prior_scene_with_target())
+    assert isinstance(scene.objects, list)
+    assert len(scene.objects) == 1
+    assert scene.objects[0]['type'] == 'soccer_ball'
+
+
+def test_specific_objects_num_targets_minus_two_with_single_target():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': {
+            'num_targets_minus': 2,
+            'shape': 'duck_on_wheels'
+        }
+    })
+    assert isinstance(
+        component.specific_interactable_objects,
+        InteractableObjectConfig
+    )
+    config = component.specific_interactable_objects
+    assert config.num_targets_minus == 2
+    assert config.shape == 'duck_on_wheels'
+
+    scene = component.update_ile_scene(prior_scene_with_target())
+    assert isinstance(scene.objects, list)
+    assert len(scene.objects) == 1
+    assert scene.objects[0]['type'] == 'soccer_ball'
+
+
+def test_specific_objects_num_targets_minus_zero_with_multiple_targets():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': {
+            'num_targets_minus': 0,
+            'shape': 'duck_on_wheels'
+        }
+    })
+    assert isinstance(
+        component.specific_interactable_objects,
+        InteractableObjectConfig
+    )
+    config = component.specific_interactable_objects
+    assert config.num_targets_minus == 0
+    assert config.shape == 'duck_on_wheels'
+
+    scene = component.update_ile_scene(prior_scene_with_targets())
+    assert isinstance(scene.objects, list)
+    assert len(scene.objects) == 4
+    assert scene.objects[0]['type'] == 'soccer_ball'
+    assert scene.objects[1]['type'] == 'soccer_ball'
+    assert scene.objects[2]['type'] == 'duck_on_wheels'
+    assert scene.objects[3]['type'] == 'duck_on_wheels'
+
+
+def test_specific_objects_num_targets_minus_one_with_multiple_targets():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': {
+            'num_targets_minus': 1,
+            'shape': 'duck_on_wheels'
+        }
+    })
+    assert isinstance(
+        component.specific_interactable_objects,
+        InteractableObjectConfig
+    )
+    config = component.specific_interactable_objects
+    assert config.num_targets_minus == 1
+    assert config.shape == 'duck_on_wheels'
+
+    scene = component.update_ile_scene(prior_scene_with_targets())
+    assert isinstance(scene.objects, list)
+    assert len(scene.objects) == 3
+    assert scene.objects[0]['type'] == 'soccer_ball'
+    assert scene.objects[1]['type'] == 'soccer_ball'
+    assert scene.objects[2]['type'] == 'duck_on_wheels'
+
+
+def test_specific_objects_num_targets_minus_two_with_multiple_targets():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': {
+            'num_targets_minus': 2,
+            'shape': 'duck_on_wheels'
+        }
+    })
+    assert isinstance(
+        component.specific_interactable_objects,
+        InteractableObjectConfig
+    )
+    config = component.specific_interactable_objects
+    assert config.num_targets_minus == 2
+    assert config.shape == 'duck_on_wheels'
+
+    scene = component.update_ile_scene(prior_scene_with_targets())
+    assert isinstance(scene.objects, list)
+    assert len(scene.objects) == 2
+    assert scene.objects[0]['type'] == 'soccer_ball'
+    assert scene.objects[1]['type'] == 'soccer_ball'
+
+
 def test_random_interactable_objects_config_component():
     component = RandomInteractableObjectsComponent({})
     assert component.num_random_interactable_objects is None
@@ -851,7 +994,7 @@ def test_random_interactable_objects_config_component_overlap():
 
 
 @pytest.mark.slow
-def test_random_interactable_objects_types_none():
+def test_random_keyword_objects_types_none():
     component = RandomKeywordObjectsComponent({})
     assert component.keyword_objects is None
 
@@ -864,7 +1007,20 @@ def test_random_interactable_objects_types_none():
         assert obj['debug']['random_position']
 
 
-def test_random_interactable_objects_types_containers():
+def test_random_keyword_objects_types_no_keyword():
+    component = RandomKeywordObjectsComponent({
+        'keyword_objects': {
+            'num': 4,
+        }
+    })
+    assert component.keyword_objects.num == 4
+    # Test a bunch of times to make sure.
+    for _ in range(100):
+        scene = component.update_ile_scene(prior_scene())
+        assert (len(scene.objects) + len(component._delayed_actions)) == 4
+
+
+def test_random_keyword_objects_types_containers():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': {
             'keyword': 'containers',
@@ -889,7 +1045,7 @@ def test_random_interactable_objects_types_containers():
         RandomKeywordObjectsComponent.LABEL_KEYWORDS_CONTAINERS))
 
 
-def test_random_interactable_objects_types_containers_excluded_type():
+def test_random_keyword_objects_types_containers_excluded_type():
     ILESharedConfiguration.get_instance().set_excluded_shapes(['chest_1'])
     component = RandomKeywordObjectsComponent({
         'keyword_objects': {
@@ -904,7 +1060,7 @@ def test_random_interactable_objects_types_containers_excluded_type():
         assert scene.objects[0]['type'] != 'chest_1'
 
 
-def test_random_interactable_objects_types_containers_contain_without_target():
+def test_random_keyword_objects_types_containers_contain_without_target():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': [{
             'keyword': 'containers_can_contain_target',
@@ -914,12 +1070,13 @@ def test_random_interactable_objects_types_containers_contain_without_target():
     assert (component.keyword_objects[0].keyword ==
             'containers_can_contain_target')
     assert component.keyword_objects[0].num == 4
+    assert component._delayed_actions == []
 
-    with pytest.raises(ILEConfigurationException):
-        component.update_ile_scene(prior_scene())
+    component.update_ile_scene(prior_scene())
+    assert len(component._delayed_actions) == 4
 
 
-def test_random_interactable_objects_types_containers_contain_target():
+def test_random_keyword_objects_types_containers_contain_target():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': [{
             'keyword': 'containers_can_contain_target',
@@ -949,7 +1106,7 @@ def test_random_interactable_objects_types_containers_contain_target():
         RandomKeywordObjectsComponent.LABEL_KEYWORDS_CONTAINERS_CAN_CONTAIN_TARGET))  # noqa
 
 
-def test_random_interactable_objects_types_containers_min_max():
+def test_random_keyword_objects_types_containers_min_max():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': [{
             'keyword': 'containers',
@@ -978,7 +1135,7 @@ def test_random_interactable_objects_types_containers_min_max():
         RandomKeywordObjectsComponent.LABEL_KEYWORDS_CONTAINERS)) <= 3
 
 
-def test_random_interactable_objects_types_asymmetric_containers():
+def test_random_keyword_objects_types_asymmetric_containers():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': {
             'keyword': 'asymmetric_containers',
@@ -1006,7 +1163,7 @@ def test_random_interactable_objects_types_asymmetric_containers():
     ))
 
 
-def test_random_interactable_objects_types_bin_containers():
+def test_random_keyword_objects_types_bin_containers():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': {
             'keyword': 'bins',
@@ -1036,7 +1193,7 @@ def test_random_interactable_objects_types_bin_containers():
     ))
 
 
-def test_random_interactable_objects_types_open_topped_containers():
+def test_random_keyword_objects_types_open_topped_containers():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': {
             'keyword': 'open_topped_containers',
@@ -1069,7 +1226,7 @@ def test_random_interactable_objects_types_open_topped_containers():
     ))
 
 
-def test_random_interactable_objects_types_symmetric_containers():
+def test_random_keyword_objects_types_symmetric_containers():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': {
             'keyword': 'symmetric_containers',
@@ -1098,7 +1255,7 @@ def test_random_interactable_objects_types_symmetric_containers():
 
 
 @pytest.mark.slow
-def test_random_interactable_objects_types_confusors():
+def test_random_keyword_objects_types_confusors():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': [{
             'keyword': 'confusors',
@@ -1138,7 +1295,7 @@ def test_random_interactable_objects_types_confusors():
 
 
 @pytest.mark.slow
-def test_random_interactable_objects_types_obstacles():
+def test_random_keyword_objects_types_obstacles():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': [{
             'keyword': 'obstacles',
@@ -1163,7 +1320,7 @@ def test_random_interactable_objects_types_obstacles():
 
 
 @pytest.mark.slow
-def test_random_interactable_objects_types_obstacles_excluded_type():
+def test_random_keyword_objects_types_obstacles_excluded_type():
     ILESharedConfiguration.get_instance().set_excluded_shapes(['chair_1'])
     component = RandomKeywordObjectsComponent({
         'keyword_objects': {
@@ -1179,7 +1336,7 @@ def test_random_interactable_objects_types_obstacles_excluded_type():
 
 
 @pytest.mark.slow
-def test_random_interactable_objects_types_obstacles_with_target():
+def test_random_keyword_objects_types_obstacles_with_target():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': [{
             'keyword': 'obstacles',
@@ -1204,7 +1361,7 @@ def test_random_interactable_objects_types_obstacles_with_target():
 
 
 @pytest.mark.slow
-def test_random_interactable_objects_types_occluders():
+def test_random_keyword_objects_types_occluders():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': [{
             'keyword': 'occluders',
@@ -1229,7 +1386,7 @@ def test_random_interactable_objects_types_occluders():
         RandomKeywordObjectsComponent.LABEL_KEYWORDS_OCCLUDERS))
 
 
-def test_random_interactable_objects_types_occluders_excluded_type():
+def test_random_keyword_objects_types_occluders_excluded_type():
     ILESharedConfiguration.get_instance().set_excluded_shapes(['sofa_1'])
     component = RandomKeywordObjectsComponent({
         'keyword_objects': {
@@ -1244,7 +1401,7 @@ def test_random_interactable_objects_types_occluders_excluded_type():
         assert scene.objects[0]['type'] != 'sofa_1'
 
 
-def test_random_interactable_objects_types_occluders_with_target():
+def test_random_keyword_objects_types_occluders_with_target():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': [{
             'keyword': 'occluders',
@@ -1266,7 +1423,7 @@ def test_random_interactable_objects_types_occluders_with_target():
         RandomKeywordObjectsComponent.LABEL_KEYWORDS_OCCLUDERS))
 
 
-def test_random_interactable_objects_types_context():
+def test_random_keyword_objects_types_context():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': {
             'keyword': 'context',
@@ -1289,7 +1446,7 @@ def test_random_interactable_objects_types_context():
         RandomKeywordObjectsComponent.LABEL_KEYWORDS_CONTEXT))
 
 
-def test_random_interactable_objects_types_context_excluded_type():
+def test_random_keyword_objects_types_context_excluded_type():
     ILESharedConfiguration.get_instance().set_excluded_shapes(['ball'])
     component = RandomKeywordObjectsComponent({
         'keyword_objects': {
@@ -1304,7 +1461,7 @@ def test_random_interactable_objects_types_context_excluded_type():
         assert scene.objects[0]['type'] != 'ball'
 
 
-def test_random_interactable_objects_types_occluder_front():
+def test_random_keyword_objects_types_occluder_front():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': {
             'keyword': 'containers',
@@ -1335,7 +1492,7 @@ def test_random_interactable_objects_types_occluder_front():
         RandomKeywordObjectsComponent.LABEL_KEYWORDS_CONTAINERS))
 
 
-def test_random_interactable_objects_types_context_in_containers():
+def test_random_keyword_objects_types_context_in_containers():
     component = RandomKeywordObjectsComponent({
         'keyword_objects': [{
             'keyword': 'containers',
@@ -1376,6 +1533,61 @@ def test_random_interactable_objects_types_context_in_containers():
     assert 1 == len(ObjectRepository.get_instance()
                     .get_all_from_labeled_objects(
         RandomKeywordObjectsComponent.LABEL_KEYWORDS_CONTEXT))
+
+
+def test_random_keyword_objects_with_position():
+    component = RandomKeywordObjectsComponent({
+        'keyword_objects': {
+            'keyword': 'bins',
+            'num': 1,
+            'position': {'x': 0, 'y': 0, 'z': 0}
+        }
+    })
+    assert component.keyword_objects.keyword == 'bins'
+    assert component.keyword_objects.num == 1
+    assert component.keyword_objects.position == (
+        VectorFloatConfig(x=0, y=0, z=0)
+    )
+
+    scene = component.update_ile_scene(prior_scene_custom_start(0, -4))
+    assert len(scene.objects) == 1
+    assert scene.objects[0]['shows'][0]['position']['x'] == 0
+    assert scene.objects[0]['shows'][0]['position']['z'] == 0
+
+
+def test_random_keyword_objects_with_position_list():
+    component = RandomKeywordObjectsComponent({
+        'keyword_objects': {
+            'keyword': 'bins',
+            'num': 4,
+            'position': [
+                {'x': 0, 'y': 0, 'z': 3},
+                {'x': 3, 'y': 0, 'z': 0},
+                {'x': 0, 'y': 0, 'z': -3},
+                {'x': -3, 'y': 0, 'z': 0}
+            ]
+        }
+    })
+    assert component.keyword_objects.keyword == 'bins'
+    assert component.keyword_objects.num == 4
+    assert component.keyword_objects.position == [
+        VectorFloatConfig(x=0, y=0, z=3),
+        VectorFloatConfig(x=3, y=0, z=0),
+        VectorFloatConfig(x=0, y=0, z=-3),
+        VectorFloatConfig(x=-3, y=0, z=0)
+    ]
+
+    scene = component.update_ile_scene(prior_scene())
+    assert len(scene.objects) == 4
+
+    positions = {}
+    for instance in scene.objects:
+        position = instance['shows'][0]['position']
+        positions[f'{position["x"]},{position["z"]}'] = True
+    assert positions.get('0.0,3.0')
+    assert positions.get('3.0,0.0')
+    assert positions.get('0.0,-3.0')
+    assert positions.get('-3.0,0.0')
 
 
 def test_specific_objects_dimensions():
@@ -1553,7 +1765,8 @@ def test_specific_objects_delayed_action():
     objects = scene.objects
     assert isinstance(objects, list)
     assert len(objects) == 0
-    component.get_num_delayed_actions() == 1
+    assert len(component._delayed_templates) == 1
+    assert len(component._delayed_separate_lids) == 0
 
 
 def test_specific_objects_delayed_action_adjacent():
@@ -1572,14 +1785,15 @@ def test_specific_objects_delayed_action_adjacent():
     objects = scene.objects
     assert isinstance(objects, list)
     assert len(objects) == 1
-    assert component.get_num_delayed_actions() == 1
+    assert len(component._delayed_templates) == 1
+    assert len(component._delayed_separate_lids) == 0
 
     scene = component.run_delayed_actions(scene)
     objects = scene.objects
     assert isinstance(objects, list)
     assert len(objects) == 2
-    component.get_num_delayed_actions() == 0
-    #  objects[1][]
+    assert len(component._delayed_templates) == 0
+    assert len(component._delayed_separate_lids) == 0
 
 
 def test_specific_objects_delayed_action_in():
@@ -1600,11 +1814,300 @@ def test_specific_objects_delayed_action_in():
     objects = scene.objects
     assert isinstance(objects, list)
     assert len(objects) == 1
-    assert component.get_num_delayed_actions() == 1
+    assert len(component._delayed_templates) == 1
+    assert len(component._delayed_separate_lids) == 0
 
     scene = component.run_delayed_actions(scene)
     objects = scene.objects
     assert isinstance(objects, list)
     assert len(objects) == 2
-    component.get_num_delayed_actions() == 0
+    assert len(component._delayed_templates) == 0
+    assert len(component._delayed_separate_lids) == 0
     assert objects[1]['locationParent'] == objects[0]['id']
+
+
+def test_specific_objects_delayed_action_identical_to():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': [{
+            'identical_to': 'object_does_not_exist'
+        }]
+    })
+
+    scene = component.update_ile_scene(prior_scene())
+    assert len(scene.objects) == 0
+    assert len(component._delayed_templates) == 1
+    assert len(component._delayed_separate_lids) == 0
+
+
+def test_specific_objects_delayed_action_identical_except_color():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': [{
+            'identical_except_color': 'object_does_not_exist'
+        }]
+    })
+
+    scene = component.update_ile_scene(prior_scene())
+    assert len(scene.objects) == 0
+    assert len(component._delayed_templates) == 1
+    assert len(component._delayed_separate_lids) == 0
+
+
+def test_specific_objects_delayed_action_position_relative():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': [{
+            'position_relative': {
+                'label': 'object_does_not_exist'
+            }
+        }]
+    })
+
+    scene = component.update_ile_scene(prior_scene())
+    assert len(scene.objects) == 0
+    assert len(component._delayed_templates) == 1
+    assert len(component._delayed_separate_lids) == 0
+
+
+def test_specific_objects_separate_container_no_lid():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': [{
+            'num': 1,
+            'shape': 'separate_container',
+            'separate_lid': -1
+        }]
+    })
+
+    scene = component.update_ile_scene(prior_scene())
+    assert len(scene.objects) == 1
+    assert scene.objects[0]['type'] == 'separate_container'
+
+
+def test_specific_objects_separate_container_lid_no_placer():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': [{
+            'num': 1,
+            'shape': 'separate_container',
+            'separate_lid': 0
+        }]
+    })
+
+    scene = component.update_ile_scene(prior_scene())
+    assert len(scene.objects) == 2
+    container = scene.objects[0]
+    lid = scene.objects[1]
+    assert container['type'] == 'separate_container'
+    assert lid['type'] == 'lid'
+    assert lid['lidAttachment']['lidAttachmentObjId'] == container['id']
+    assert lid['lidAttachment']['stepBegin'] == 0
+
+    lid_show = lid['shows'][0]
+    container_show = container['shows'][0]
+    assert lid_show['position']['x'] == container_show['position']['x']
+    assert lid_show['position']['y'] == (
+        container_show['position']['y'] + container_show['scale']['y']
+    )
+    assert lid_show['position']['z'] == container_show['position']['z']
+    assert lid_show['rotation']['y'] == container_show['rotation']['y']
+    assert lid_show['scale'] == container_show['scale']
+
+
+def test_specific_objects_separate_container_lid_placer():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': [{
+            'num': 1,
+            'shape': 'separate_container',
+            'separate_lid': 1
+        }]
+    })
+
+    scene = component.update_ile_scene(prior_scene())
+    assert len(scene.objects) == 3
+    container = scene.objects[0]
+    lid = scene.objects[1]
+    placer = scene.objects[2]
+    assert container['type'] == 'separate_container'
+    assert lid['type'] == 'lid'
+    assert lid['lidAttachment']['lidAttachmentObjId'] == container['id']
+    assert placer['type'] == 'cylinder'
+    assert placer['id'].startswith('placer_')
+
+    lid_show = lid['shows'][0]
+    container_show = container['shows'][0]
+    placer_show = placer['shows'][0]
+    assert lid_show['position']['x'] == container_show['position']['x']
+    assert lid_show['position']['y'] == (
+        scene.room_dimensions.y +
+        container_show['position']['y'] + container_show['scale']['y']
+    )
+    assert lid_show['position']['z'] == container_show['position']['z']
+    assert lid_show['rotation']['y'] == container_show['rotation']['y']
+    assert lid_show['scale'] == container_show['scale']
+    assert placer_show['position']['x'] == container_show['position']['x']
+    assert placer_show['position']['y'] == (
+        scene.room_dimensions.y + placer_show['scale']['y'] +
+        container['debug']['dimensions']['y'] + lid['debug']['dimensions']['y']
+    )
+    assert placer_show['position']['z'] == container_show['position']['z']
+
+    assert len(lid['moves']) == 1
+    assert lid['moves'][0]['stepBegin'] == 1
+    assert len(placer['moves']) == 2
+    assert placer['moves'][0]['stepBegin'] == 1
+    assert lid['lidAttachment']['stepBegin'] >= placer['moves'][0]['stepEnd']
+
+
+def test_specific_objects_separate_container_lid_placer_after():
+    object_repository = ObjectRepository.get_instance()
+    mock_moving_object = {
+        'id': 'object_1',
+        'moves': [{'stepBegin': 1, 'stepEnd': 10}]
+    }
+    mock_idl = InstanceDefinitionLocationTuple(mock_moving_object, {}, {})
+    object_repository.add_to_labeled_objects(mock_idl, 'label_1')
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': [{
+            'num': 1,
+            'shape': 'separate_container',
+            'separate_lid_after': 'label_1'
+        }]
+    })
+
+    scene = component.update_ile_scene(prior_scene())
+    assert len(scene.objects) == 3
+    container = scene.objects[0]
+    lid = scene.objects[1]
+    placer = scene.objects[2]
+    assert container['type'] == 'separate_container'
+    assert lid['type'] == 'lid'
+    assert lid['lidAttachment']['lidAttachmentObjId'] == container['id']
+    assert placer['type'] == 'cylinder'
+    assert placer['id'].startswith('placer_')
+
+    lid_show = lid['shows'][0]
+    container_show = container['shows'][0]
+    placer_show = placer['shows'][0]
+    assert lid_show['position']['x'] == container_show['position']['x']
+    assert lid_show['position']['y'] == (
+        scene.room_dimensions.y +
+        container_show['position']['y'] + container_show['scale']['y']
+    )
+    assert lid_show['position']['z'] == container_show['position']['z']
+    assert lid_show['rotation']['y'] == container_show['rotation']['y']
+    assert lid_show['scale'] == container_show['scale']
+    assert placer_show['position']['x'] == container_show['position']['x']
+    assert placer_show['position']['y'] == (
+        scene.room_dimensions.y + placer_show['scale']['y'] +
+        container['debug']['dimensions']['y'] + lid['debug']['dimensions']['y']
+    )
+    assert placer_show['position']['z'] == container_show['position']['z']
+
+    assert len(lid['moves']) == 1
+    assert lid['moves'][0]['stepBegin'] == 11
+    assert len(placer['moves']) == 2
+    assert placer['moves'][0]['stepBegin'] == 11
+    assert lid['lidAttachment']['stepBegin'] >= placer['moves'][0]['stepEnd']
+
+
+def test_specific_objects_separate_container_lid_placer_delay():
+    component = SpecificInteractableObjectsComponent({
+        'specific_interactable_objects': [{
+            'num': 1,
+            'shape': 'separate_container',
+            'separate_lid_after': 'object_does_not_exist'
+        }]
+    })
+
+    scene = component.update_ile_scene(prior_scene())
+    assert len(scene.objects) == 1
+    assert scene.objects[0]['type'] == 'separate_container'
+    assert len(component._delayed_templates) == 0
+    assert len(component._delayed_separate_lids) == 1
+
+
+def test_run_actions_at_end_of_scene_generation_separate_container_with_lid_placer_and_moves():  # noqa
+    component = SpecificInteractableObjectsComponent({
+        "specific_interactable_objects": [{
+            "num": 1,
+            "shape": "separate_container",
+            "separate_lid": 30,
+            "scale": 0.4,
+            "rotation": {
+                "y": 45
+            },
+            "position": {
+                "x": -2,
+                "z": 2
+            }
+        }]})
+    scene = component.update_ile_scene(prior_scene())
+    assert len(scene.objects) == 3
+    container = scene.objects[0]
+    lid = scene.objects[1]
+    placer = scene.objects[2]
+    assert container['type'] == 'separate_container'
+    assert lid['type'] == 'lid'
+    assert placer['type'] == 'cylinder'
+
+    moves = [
+        {
+            'stepBegin': 1,
+            'stepEnd': 15,
+            'globalSpace': True,
+            'vector': {'x': 0.135, 'y': 0, 'z': 0}
+        },
+        {
+            'stepBegin': 16,
+            'stepEnd': 20,
+            'vector': {'x': 0, 'y': 0, 'z': -0.175}
+        },
+        {
+            'stepBegin': 21,
+            'stepEnd': 25,
+            'globalSpace': True,
+            'vector': {'x': -0.125, 'y': 0, 'z': 0.15}
+        },
+        {
+            'stepBegin': 55,
+            'stepEnd': 62,
+            'vector': {'x': 0.2, 'y': 0, 'z': 0.1}
+        }
+    ]
+    assert lid['shows'][0]['position']['x'] == \
+        container['shows'][0]['position']['x']
+    assert lid['shows'][0]['position']['z'] == \
+        container['shows'][0]['position']['z']
+    assert lid['shows'][0]['rotation']['y'] == \
+        container['shows'][0]['rotation']['y']
+    assert lid['shows'][0]['scale'] == container['shows'][0]['scale']
+    assert placer['shows'][0]['position']['x'] == \
+        container['shows'][0]['position']['x']
+    assert placer['shows'][0]['position']['z'] == \
+        container['shows'][0]['position']['z']
+
+    container['moves'] = moves
+    scene = component.run_actions_at_end_of_scene_generation(scene)
+
+    assert not lid['shows'][0]['position']['x'] == \
+        container['shows'][0]['position']['x']
+    assert not lid['shows'][0]['position']['z'] == \
+        container['shows'][0]['position']['z']
+    assert lid['shows'][0]['rotation']['y'] == \
+        container['shows'][0]['rotation']['y']
+    assert lid['shows'][0]['scale'] == container['shows'][0]['scale']
+    assert not placer['shows'][0]['position']['x'] == \
+        container['shows'][0]['position']['x']
+    assert not placer['shows'][0]['position']['z'] == \
+        container['shows'][0]['position']['z']
+
+    """
+    These hardcoded numbers were confirmed inside unity when running this
+    scene with this config. The container moves for its first 3 moves,
+    then the lid is placed correctly in the new location,
+    then the container moves again. We only want to keep track
+    of the first 3 moves, then we place the lid.
+    """
+    end_x = -1.2187
+    end_z = 2.1313
+    assert lid['shows'][0]['position']['x'] == pytest.approx(end_x, 1e-2)
+    assert lid['shows'][0]['position']['z'] == pytest.approx(end_z, 1e-2)
+    assert placer['shows'][0]['position']['z'] == pytest.approx(end_z, 1e-2)
+    assert placer['shows'][0]['position']['z'] == pytest.approx(end_z, 1e-2)

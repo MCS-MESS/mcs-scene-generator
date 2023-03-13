@@ -2,17 +2,19 @@ from machine_common_sense.config_manager import Vector3d
 
 from generator.scene import Scene, get_step_limit_from_dimensions
 
-from .ile_helper import prior_scene_with_target
+from .ile_helper import prior_scene_with_target, prior_scene_with_targets
 
 
-def test_get_target_object_None():
+def test_get_targets_none():
     scene = Scene()
-    assert scene.get_target_object() is None
+    assert scene.get_targets() == []
 
 
-def test_get_target_object_with_target():
+def test_get_targets_single():
     scene = prior_scene_with_target()
-    obj = scene.get_target_object()
+    targets = scene.get_targets()
+    assert len(targets) == 1
+    obj = targets[0]
     assert obj["type"] == "soccer_ball"
     assert obj["id"] == "743a91ad-fa2a-42a6-bf6b-2ac737ab7f8f"
     assert obj["moveable"]
@@ -21,6 +23,29 @@ def test_get_target_object_with_target():
     assert show["rotation"] == {"x": 0, "y": 45, "z": 0}
     assert show["position"] == {"x": -1.03, "y": 0.11, "z": 4.08}
     assert show["scale"] == {"x": 1, "y": 1, "z": 1}
+
+
+def test_get_targets_many():
+    scene = prior_scene_with_targets()
+    targets = scene.get_targets()
+    assert len(targets) == 2
+    target_1 = targets[0]
+    assert target_1['type'] == 'soccer_ball'
+    assert target_1['id']
+    assert target_1['moveable']
+    assert target_1['pickupable']
+    assert target_1['shows'][0]['position'] == {'x': 1, 'y': 0.11, 'z': 2}
+    assert target_1['shows'][0]['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+    assert target_1['shows'][0]['scale'] == {'x': 1, 'y': 1, 'z': 1}
+    target_2 = targets[1]
+    assert target_2['type'] == 'soccer_ball'
+    assert target_2['id']
+    assert target_2['moveable']
+    assert target_2['pickupable']
+    assert target_2['shows'][0]['position'] == {'x': 3, 'y': 0.11, 'z': 4}
+    assert target_2['shows'][0]['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+    assert target_2['shows'][0]['scale'] == {'x': 1, 'y': 1, 'z': 1}
+    assert target_1['id'] != target_2['id']
 
 
 def test_scene_default():
@@ -44,7 +69,7 @@ def test_scene_default():
     assert scene.room_materials is None
     assert not scene.restrict_open_doors
     assert not scene.screenshot
-    assert scene.version is None
+    assert scene.version == 2
     assert scene.wall_material is None
     assert scene.wall_properties is None
 
@@ -82,16 +107,17 @@ def test_set_performer_start_position():
 def test_set_performer_start_rotation():
     scene = Scene()
     assert scene.performer_start.rotation == Vector3d()
-    scene.set_performer_start_rotation(90)
+    scene.set_performer_start_rotation(0, 90)
     assert scene.performer_start.rotation == Vector3d(x=0, y=90, z=0)
-    scene.set_performer_start_rotation(258)
-    assert scene.performer_start.rotation == Vector3d(x=0, y=258, z=0)
+    scene.set_performer_start_rotation(23, 258)
+    assert scene.performer_start.rotation == Vector3d(x=23, y=258, z=0)
 
 
 def test_to_dict():
     scene = Scene()
     d = scene.to_dict()
     assert d == {
+        "version": 2,
         "debug": {},
         "goal": {
             "metadata": {}},
@@ -117,7 +143,7 @@ def test_to_dict():
             "y": 3,
             "z": 10}}
 
-    scene.set_performer_start_rotation(258)
+    scene.set_performer_start_rotation(23, 258)
     scene.set_performer_start_position(1, 2, 3)
     scene.set_room_dimensions(4, 5, 6)
     scene.name = "test"
@@ -132,6 +158,7 @@ def test_to_dict():
     })
     d = scene.to_dict()
     assert d == {
+        "version": 2,
         "debug": {},
         "goal": {
             "metadata": {}},
@@ -155,7 +182,7 @@ def test_to_dict():
                 "y": 2,
                 "z": 3},
             "rotation": {
-                "x": 0,
+                "x": 23,
                 "y": 258,
                 "z": 0}},
         "roomDimensions": {

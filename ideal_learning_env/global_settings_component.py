@@ -1,19 +1,27 @@
+import copy
 import logging
 import math
 import random
+from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 
 from machine_common_sense.config_manager import Vector3d
 
-from generator import MaterialTuple, geometry, materials
+from generator import MaterialTuple, geometry, materials, tags
 from generator.scene import Scene, get_step_limit_from_dimensions
-from ideal_learning_env.numerics import MinMaxFloat, MinMaxInt
+from ideal_learning_env.numerics import (
+    MinMaxFloat,
+    MinMaxInt,
+    RandomizableFloat,
+    VectorFloatConfig,
+    VectorIntConfig
+)
 
 from .choosers import (
     choose_material_tuple_from_material,
     choose_position,
     choose_random,
-    choose_rotation,
+    choose_rotation
 )
 from .components import ILEComponent
 from .decorators import ile_config_setter
@@ -22,22 +30,104 @@ from .defs import (
     ROOM_MAX_Y,
     ROOM_MIN_XZ,
     ROOM_MIN_Y,
+    ILEConfigurationException,
     ILEDelayException,
     ILEException,
     ILESharedConfiguration,
     RandomizableBool,
+    find_bounds,
+    return_list
 )
 from .goal_services import GoalConfig, GoalServices
-from .numerics import VectorFloatConfig, VectorIntConfig
-from .object_services import ObjectRepository
+from .object_services import (
+    KeywordLocation,
+    KeywordLocationConfig,
+    ObjectRepository
+)
 from .validators import ValidateNoNullProp, ValidateNumber, ValidateOptions
 
 logger = logging.getLogger(__name__)
 
 # Limit the possible random room dimensions to more typical choices.
-ROOM_RANDOM_XZ = MinMaxInt(5, 30)
+ROOM_RANDOM_XZ = MinMaxInt(5, 25)
 ROOM_RANDOM_Y = MinMaxInt(3, 8)
-ADJUSTED_PERFORMER_WIDTH = geometry.PERFORMER_HALF_WIDTH - 0.02
+
+TRAPEZOIDAL_WALL_LEFT = {
+    "id": "wall_left_override",
+    "type": "cube",
+    "mass": 1000,
+    "materials": [],
+    "kinematic": True,
+    "physics": True,
+    "structure": True,
+    "debug": {},
+    "shows": [{
+        "stepBegin": 0,
+        "position": {
+            "x": -4,
+            "y": 3,
+            "z": 0
+        },
+        "rotation": {
+            "x": 0,
+            "y": 15,
+            "z": 0
+        },
+        "scale": {
+            "x": 0.5,
+            "y": 6,
+            "z": 18
+        }
+    }]
+}
+TRAPEZOIDAL_WALL_RIGHT = {
+    "id": "wall_right_override",
+    "type": "cube",
+    "mass": 1000,
+    "materials": [],
+    "kinematic": True,
+    "physics": True,
+    "structure": True,
+    "debug": {},
+    "shows": [{
+        "stepBegin": 0,
+        "position": {
+            "x": 4,
+            "y": 3,
+            "z": 0
+        },
+        "rotation": {
+            "x": 0,
+            "y": -15,
+            "z": 0
+        },
+        "scale": {
+            "x": 0.5,
+            "y": 6,
+            "z": 18
+        }
+    }]
+}
+
+
+@dataclass
+class PerformerStartsNearConfig():
+    """
+    Defines details of performer_starts_near which places the performer near an
+    object of a given label at a specified distance away.
+    - `label` (string or list of strings):
+    Label of the object the performer will be placed near. Required.
+    - `distance` (float or list of floats):
+    Distance the performer will be from the object.  Default: 0.1
+
+    Example:
+    ```
+    label: container
+    distance: 0.1
+    ```
+    """
+    label: Union[str, List[str]] = None
+    distance: RandomizableFloat = 0.1
 
 
 class GlobalSettingsComponent(ILEComponent):
@@ -80,6 +170,27 @@ class GlobalSettingsComponent(ILEComponent):
     ```
     """
 
+    excluded_colors: Union[str, List[str]] = None
+    """
+    (string, or list of strings): Zero or more color words to exclude from
+    being randomly generated as object or room materials. Materials with the
+    listed colors can still be generated using specifically set configuration
+    options, like the `floor_material` and `wall_material` options, or the
+    `material` property in the `specific_interactable_objects` option. Useful
+    if you want to avoid generating random objects with the same color as a
+    configured object. Default: no excluded colors
+
+    Simple Example:
+    ```
+    excluded_colors: null
+    ```
+
+    Advanced Example:
+    ```
+    excluded_colors: "red"
+    ```
+    """
+
     excluded_shapes: Union[str, List[str]] = None
     """
     (string, or list of strings): Zero or more object shapes (types) to exclude
@@ -87,7 +198,7 @@ class GlobalSettingsComponent(ILEComponent):
     generated using specifically set configuration options, like the `type`
     property in the `goal.target` and `specific_interactable_objects` options.
     Useful if you want to avoid randomly generating additional objects of the
-    same shape as a configured goal target. Default: None
+    same shape as a configured goal target. Default: no excluded shapes
 
     Simple Example:
     ```
@@ -117,10 +228,31 @@ class GlobalSettingsComponent(ILEComponent):
     ```
     """
 
+    forced_choice_multi_retrieval_target: str = None
+    """
+    (str): Whether to set a new "multi retrieval" goal using objects of a
+    specific type that already exist in the scene. Set this option to an object
+    shape like `"soccer_ball"`. This option splits all matching objects into
+    "left" and "right" groups based on their X positions (ignoring objects that
+    are picked up by placers). All objects in the larger group will be used as
+    the new goal's target(s). Overrides the configured `goal`.
+    Default: not used
+
+    Simple Example:
+    ```
+    forced_choice_multi_retrieval_target: null
+    ```
+
+    Advanced Example:
+    ```
+    forced_choice_multi_retrieval_target: 'soccer_ball'
+    ```
+    """
+
     goal: Union[GoalConfig, List[GoalConfig]] = None
     """
     ([GoalConfig](#GoalConfig) dict): The goal category and target(s) in each
-    scene, if any. Default: None
+    scene, if any. Default: no goal
 
     Simple Example:
     ```
@@ -143,7 +275,7 @@ class GlobalSettingsComponent(ILEComponent):
     """
     (int, or list of ints): The last possible action step, or list of last
     steps, from which one is chosen at random for each scene. This field will
-    overwrite 'auto_last_step' if set.  Default: none
+    overwrite 'auto_last_step' if set.  Default: no last step
     (unlimited)
 
     Simple Example:
@@ -157,8 +289,78 @@ class GlobalSettingsComponent(ILEComponent):
     ```
     """
 
+    occluder_gap: RandomizableFloat = None
+    """
+    (float, or list of floats, or [MinMaxFloat](#MinMaxFloat) dict: Gap (X
+    distance) between moving structual occluders. Will override
+    `position_x`. Only applies when `passive_physics_scene` is True.
+    Default: no restrictions
+
+    All scenes are generated with a .5 gap between occluders.
+
+    Simple Example:
+    ```
+    occluder_gap: .5
+    ```
+
+    All scenes are generated with .5 or 1.0 gap between occluders.
+
+    Advanced Example:
+    ```
+    occluder_gap: [.5, 1.0]
+    ```
+
+    All scenes are generated with a gap between (inclusive) .5 and 1.0 between
+    occluders.
+
+    Advanced Example:
+    ```
+    occluder_gap:
+        min: .5
+        max: 1.0
+    ```
+    """
+
+    occluder_gap_viewport: RandomizableFloat = None
+    """
+    (float, or list of floats, or [MinMaxFloat](#MinMaxFloat) dict: Gap (X
+    distance) between occluders and edge of viewport. If both are included,
+    `occluder_gap` will take precedence over `occluder_gap_viewport`.
+    Will override `position_x`.
+    Only applies when `passive_physics_scene` is True.
+    Default: no restrictions
+
+    All scenes are generated with a .5 gap between the occluder and the
+    viewport.
+
+    Simple Example:
+    ```
+    occluder_gap_viewport: .5
+    ```
+
+    All scenes are generated with .5 or 1.0 gap between occluder and the
+    viewport.
+
+    Advanced Example:
+    ```
+    occluder_gap_viewport: [.5, 1.0]
+    ```
+
+    All scenes are generated with a gap between (inclusive) .5 and 1.0 between
+    the occluder nad the edge of the viewport.
+
+    Advanced Example:
+    ```
+    occluder_gap_viewport:
+        min: .5
+        max: 1.0
+    ```
+    """
+
     passive_physics_floor: bool = None
     """
+    **Deprecated.** Please use `passive_physics_scene: true`
+
     (bool): Lowers the friction of the floor (making it more "slippery").
     Used in passive physics evaluation scenes. Default: False
 
@@ -170,6 +372,24 @@ class GlobalSettingsComponent(ILEComponent):
     Advanced Example:
     ```
     passive_physics_floor: True
+    ```
+    """
+
+    passive_physics_scene: bool = None
+    """
+    (bool): Setup each scene in exactly the same way as the "passive physics"
+    scenes used in the MCS evaluations, including the camera position, room
+    dimensions, floor friction, and restrictions on only "Pass" actions.
+    Default: False
+
+    Simple Example:
+    ```
+    passive_physics_scene: False
+    ```
+
+    Advanced Example:
+    ```
+    passive_physics_scene: True
     ```
     """
 
@@ -191,13 +411,42 @@ class GlobalSettingsComponent(ILEComponent):
     ```
     """
 
-    performer_start_position: Union[
-        VectorFloatConfig,
-        List[VectorFloatConfig]
+    performer_starts_near: Union[
+        PerformerStartsNearConfig,
+        List[PerformerStartsNearConfig]
     ] = None
     """
+    ([PerformerStartsNearConfig](#PerformerStartsNearConfig) dict, or list
+    of PerformerStartsNearConfig dicts:
+    Dictates if the starting position of the performer will be near an
+    object of a given `label` at a specified `distance` away.
+    Use in combination with `performer_look_at` to look at the object at start.
+    Overrides `performer_start_position`.
+    Default: Use `performer_start_position`
+
+    Simple Example:
+    ```
+    performer_starts_near: null
+    ```
+
+    Advanced Example:
+    ```
+    performer_starts_near:
+        label: container
+        distance: 0.1
+    ```
+    """
+
+    performer_start_position: Union[
+        VectorFloatConfig,
+        List[VectorFloatConfig],
+        KeywordLocationConfig
+    ] = None
+
+    """
     ([VectorFloatConfig](#VectorFloatConfig) dict, or list of VectorFloatConfig
-    dicts): The starting position of the performer agent, or a list of
+    dicts or [KeywordLocationConfig](#KeywordLocationConfig)): The starting
+    position of the performer agent, or a list of
     positions, from which one is chosen at random for each scene. The
     (optional) `y` is used to position on top of structural objects like
     platforms. Valid parameters are constrained by room dimensions.
@@ -212,7 +461,10 @@ class GlobalSettingsComponent(ILEComponent):
     [-3.25, 0, 3.25].' For `y` start and room dimensions, the min y position
     must always be greater than 0 and the max must always be less than or equal
     to room dimension y - 1.25.' This ensures the performer does not clip
-    into the ceiling. Default: random within the room
+    into the ceiling. Alternatively, the performer start can be a
+    [KeywordLocationConfig](#KeywordLocationConfig).  Performer only supports
+    the following keyword locations: `along_wall`
+    Default: random within the room
 
     Simple Example:
     ```
@@ -279,6 +531,23 @@ class GlobalSettingsComponent(ILEComponent):
     ```
     """
 
+    restrict_open_objects: bool = None
+    """
+    (bool): If there are multiple openable objects in a scene, including
+    containers and doors, only allow for one to ever be opened.
+    Default: False
+
+    Simple Example:
+    ```
+    restrict_open_objects: False
+    ```
+
+    Advanced Example:
+    ```
+    restrict_open_objects: True
+    ```
+    """
+
     room_dimensions: Union[VectorIntConfig, List[VectorIntConfig]] = None
     """
     ([VectorIntConfig](#VectorIntConfig) dict, or list of VectorIntConfig
@@ -286,7 +555,7 @@ class GlobalSettingsComponent(ILEComponent):
     which one is chosen at random for each scene. Rooms are always rectangular
     or square. The X and Z must each be within [2, 100] and the Y must be
     within [2, 10]. The room's bounds will be [-X/2, X/2] and [-Z/2, Z/2].
-    Default: random X from 5 to 30, random Y from 3 to 8, random Z from 5 to 30
+    Default: random X from 5 to 25, random Y from 3 to 8, random Z from 5 to 25
 
     Simple Example:
     ```
@@ -312,7 +581,7 @@ class GlobalSettingsComponent(ILEComponent):
     """
     (string): Shape of the room to restrict the randomzed room dimensions if
     `room_dimensions` weren't configured. Options: `rectangle`, `square`.
-    Default: None
+    Default: Use `room_dimensions`
 
     Simple Example:
     ```
@@ -322,6 +591,40 @@ class GlobalSettingsComponent(ILEComponent):
     Advanced Example:
     ```
     room_shape: square
+    ```
+    """
+
+    side_wall_opposite_colors: Union[bool, List[bool]] = None
+    """
+    (bool, or list of bools): Makes three of the room's walls the same color,
+    and the other wall (either the left or the right) an opposite color.
+    Overrides all the `wall_*_material` config options. Default: False
+
+    Simple Example:
+    ```
+    side_wall_opposite_colors: False
+    ```
+
+    Advanced Example:
+    ```
+    side_wall_opposite_colors: True
+    ```
+    """
+
+    trapezoidal_room: Union[bool, List[bool]] = None
+    """
+    (bool, or list of bools): Makes the room trapezoidal, so the left and right
+    walls will be angled inward. Currently only supported for room_dimensions
+    of X=12 and Z=16. Default: False
+
+    Simple Example:
+    ```
+    trapezoidal_room: False
+    ```
+
+    Advanced Example:
+    ```
+    trapezoidal_room: True
     ```
     """
 
@@ -373,6 +676,23 @@ class GlobalSettingsComponent(ILEComponent):
     ```
     """
 
+    wall_material: Union[str, List[str]] = None
+    """
+    (string, or list of strings): The material for all room walls, or list of
+    materials, from which one is chosen for each scene. Is overridden by the
+    individual `wall_*_material` config options. Default: ROOM_WALL_MATERIALS
+
+    Simple Example:
+    ```
+    wall_material: null
+    ```
+
+    Advanced Example:
+    ```
+    wall_material: "Custom/Materials/GreyDrywallMCS"
+    ```
+    """
+
     wall_right_material: Union[str, List[str]] = None
     """
     (string, or list of strings): The material for the right wall, or list of
@@ -398,21 +718,71 @@ class GlobalSettingsComponent(ILEComponent):
     def update_ile_scene(self, scene: Scene) -> Scene:
         logger.info('Configuring global settings for the scene...')
 
-        excluded_shapes = self.get_excluded_shapes()
-        ILESharedConfiguration.get_instance().set_excluded_shapes(
-            excluded_shapes
-        )
-        logger.trace(f'Setting excluded shapes = {excluded_shapes}')
+        if (
+            self.get_passive_physics_floor() or
+            self.get_passive_physics_scene()
+        ):
+            logger.trace('Switching to passive physics scene setup')
+            scene.intuitive_physics = True
+            scene.version = 3
+
+            # These properties aren't needed for Unity to render the scene, but
+            # may be needed for other parts of the ILE scene generator to work.
+            self.set_room_dimensions(VectorIntConfig(20, 10, 20))
+            self.set_performer_start_position(VectorFloatConfig(0, 0, -4.5))
+            self.set_performer_start_rotation(VectorIntConfig(0, 0, 0))
+            # Don't use set_goal() here because of the category validator.
+            self.goal = GoalConfig(category=tags.SCENE.INTUITIVE_PHYSICS)
+
+            # Lower the friction values, but use defaults for the others.
+            # Note this is no longer needed as of v1.5, because we now set
+            # `intuitive_physics`, but keeping it for backwards compatibility.
+            scene.floor_properties = {
+                'enable': True,
+                'angularDrag': 0.5,
+                'bounciness': 0,
+                'drag': 0,
+                'dynamicFriction': 0.1,
+                'staticFriction': 0.1
+            }
+
+        shared_config = ILESharedConfiguration.get_instance()
+
+        occluder_gap = self.get_occluder_gap()
+        shared_config.set_occluder_gap(occluder_gap)
+
+        occluder_gap_viewport = self.get_occluder_gap_viewport()
+        shared_config.set_occluder_gap_viewport(occluder_gap_viewport)
+
+        excluded_colors = return_list(self.excluded_colors, [])
+        shared_config.set_excluded_colors(excluded_colors)
+        if excluded_colors:
+            logger.trace(f'Setting excluded colors = {excluded_colors}')
+
+        excluded_shapes = return_list(self.excluded_shapes, [])
+        shared_config.set_excluded_shapes(excluded_shapes)
+        if excluded_shapes:
+            logger.trace(f'Setting excluded shapes = {excluded_shapes}')
 
         scene.room_dimensions = self.get_room_dimensions()
         logger.trace(f'Setting room dimensions = {scene.room_dimensions}')
 
-        scene.set_performer_start(
-            self.get_performer_start_position(
-                scene.room_dimensions),
-            self.get_performer_start_rotation())
+        self._delayed_position_label = None
+        self._delayed_position_distance = None
+        if self.performer_starts_near:
+            random_perf_starts_near = self.get_performer_distance()
+            self._delayed_position_label = random_perf_starts_near.label
+            self._delayed_position_distance = choose_random(
+                random_perf_starts_near.distance
+            )
+            self._set_position_by_distance(scene)
+        else:
+            start_pos = self.get_performer_start_position(
+                scene.room_dimensions)
+            scene.set_performer_start(
+                start_pos,
+                self.get_performer_start_rotation())
         logger.trace(f'Setting performer start = {scene.performer_start}')
-
         self._delayed_rotation_label = self.get_performer_look_at()
         self._set_rotation_by_look_at(scene)
 
@@ -428,6 +798,7 @@ class GlobalSettingsComponent(ILEComponent):
             (key, value.material) for key, value in wall_material_data.items()
         ])
         scene.restrict_open_doors = self.get_restrict_open_doors()
+        scene.restrict_open_objects = self.get_restrict_open_objects()
         scene.debug['wallColors'] = list(set([
             color for value in wall_material_data.values()
             for color in value.color
@@ -437,16 +808,29 @@ class GlobalSettingsComponent(ILEComponent):
             f'\nFLOOR={scene.floor_material}\nWALL={scene.room_materials}'
         )
 
-        if self.get_passive_physics_floor():
-            # Lower the friction values, but use defaults for the others.
-            scene.floor_properties = {
-                'enable': True,
-                'angularDrag': 0.5,
-                'bounciness': 0,
-                'drag': 0,
-                'dynamicFriction': 0.1,
-                'staticFriction': 0.1
-            }
+        trapezoidal_room = choose_random(self.trapezoidal_room)
+        if trapezoidal_room:
+            if scene.room_dimensions.x != 12:
+                raise ILEConfigurationException(
+                    f'The trapezoidal_room config option is currently only '
+                    f'supported for room_dimensions of X=12, but it is X='
+                    f'{scene.room_dimensions.x}'
+                )
+            if scene.room_dimensions.z != 16:
+                raise ILEConfigurationException(
+                    f'The trapezoidal_room config option is currently only '
+                    f'supported for room_dimensions of Z=16, but it is Z='
+                    f'{scene.room_dimensions.z}'
+                )
+            wall_left = copy.deepcopy(TRAPEZOIDAL_WALL_LEFT)
+            wall_right = copy.deepcopy(TRAPEZOIDAL_WALL_RIGHT)
+            reverse_angle = random.choice([True, False])
+            if reverse_angle:
+                wall_left['shows'][0]['rotation']['y'] *= -1
+                wall_right['shows'][0]['rotation']['y'] *= -1
+            wall_left['materials'] = [scene.room_materials['left']]
+            wall_right['materials'] = [scene.room_materials['right']]
+            scene.objects.extend([wall_left, wall_right])
 
         last_step = self.get_last_step()
         if not last_step and self.get_auto_last_step():
@@ -472,24 +856,41 @@ class GlobalSettingsComponent(ILEComponent):
             tar_pos = idl.instance['shows'][0]['position']
             tbb = idl.instance['shows'][0]['boundingBox']
             target_y = (tbb.min_y + tbb.max_y) / 2.0
-            dx = -(perf_pos.x - tar_pos['x'])
-            dy = perf_pos.y + geometry.PERFORMER_CAMERA_Y - target_y
-            dz = -(perf_pos.z - tar_pos['z'])
+            tilt, rot = geometry.calculate_rotations(
+                perf_pos,
+                Vector3d(x=tar_pos['x'], y=target_y, z=tar_pos['z'])
+            )
             self._delayed_rotation_label = None
-            rot = math.degrees(math.atan2(float(dx), dz))
             scene.performer_start.rotation.y = rot
-            tilt = math.degrees(math.atan2(dy, math.sqrt(dx * dx + dz * dz)))
             scene.performer_start.rotation.x = tilt
         else:
             self._delayed_rotation_reason = ILEDelayException(
                 f"Performer unable to set rotation due to missing object "
                 f"with label '{self._delayed_rotation_label}'")
 
+    def _set_position_by_distance(self, scene: Scene):
+        if not self._delayed_position_label:
+            return
+        if idl := (ObjectRepository.get_instance().
+                   get_one_from_labeled_objects(
+                self._delayed_position_label)):
+            self._delayed_position_reason = None
+            target = idl.instance
+            (x, z) = geometry.get_position_distance_away_from_obj(
+                scene.room_dimensions, target,
+                self._delayed_position_distance,
+                find_bounds(scene))
+            scene.set_performer_start_position(x=x, y=None, z=z)
+            self._delayed_position_label = None
+        else:
+            self._delayed_position_reason = ILEDelayException(
+                f"Performer unable to set position due to missing object "
+                f"with label '{self._delayed_position_label}'")
+
     def _attempt_goal(self, scene):
         try:
             goal_template = self.goal
-            goal_specific: GoalConfig = choose_random(goal_template)
-            GoalServices.attempt_to_add_goal(scene, goal_specific)
+            GoalServices.attempt_to_add_goal(scene, goal_template)
             self._delayed_goal = False
             self._delayed_goal_reason = None
         except ILEDelayException as e:
@@ -498,10 +899,8 @@ class GlobalSettingsComponent(ILEComponent):
             self._delayed_goal_reason = e
 
     def get_ceiling_material(self) -> MaterialTuple:
-        return (
-            choose_random(self.ceiling_material, MaterialTuple)
-            if self.ceiling_material else
-            random.choice(materials.CEILING_MATERIALS)
+        return choose_material_tuple_from_material(
+            self.ceiling_material or materials.CEILING_MATERIALS
         )
 
     @ile_config_setter(validator=ValidateOptions(
@@ -510,20 +909,17 @@ class GlobalSettingsComponent(ILEComponent):
     def set_ceiling_material(self, data: Any) -> None:
         self.ceiling_material = data
 
-    def get_excluded_shapes(self) -> List[str]:
-        return (
-            self.excluded_shapes if isinstance(self.excluded_shapes, list) else
-            [self.excluded_shapes]
-        ) if self.excluded_shapes else []
+    @ile_config_setter()
+    def set_excluded_colors(self, data: Any) -> None:
+        self.excluded_colors = data
 
     @ile_config_setter()
     def set_excluded_shapes(self, data: Any) -> None:
         self.excluded_shapes = data
 
     def get_floor_material(self) -> MaterialTuple:
-        return choose_random(
-            self.floor_material or materials.FLOOR_MATERIALS,
-            MaterialTuple
+        return choose_material_tuple_from_material(
+            self.floor_material or materials.FLOOR_MATERIALS
         )
 
     @ile_config_setter(validator=ValidateOptions(
@@ -532,12 +928,20 @@ class GlobalSettingsComponent(ILEComponent):
     def set_floor_material(self, data: Any) -> None:
         self.floor_material = data
 
+    @ile_config_setter()
+    def set_forced_choice_multi_retrieval_target(self, data: Any) -> None:
+        self.forced_choice_multi_retrieval_target = data
+
     def get_goal(self):
         return self.goal
 
-    # If not null, category is required.
-    @ile_config_setter(validator=ValidateNoNullProp(props=['category']))
+    @ile_config_setter(validator=ValidateOptions(props=['category'], options=[
+        tags.SCENE.RETRIEVAL, tags.SCENE.MULTI_RETRIEVAL,
+        tags.SCENE.PASSIVE, tags.SCENE.IMITATION
+    ]))
     def set_goal(self, data: Any) -> None:
+        if data:
+            data.category = GoalServices.validate_goal_category(data)
         self.goal = data
 
     def get_last_step(self) -> int:
@@ -549,16 +953,67 @@ class GlobalSettingsComponent(ILEComponent):
         self.last_step = data
 
     @ile_config_setter()
+    def set_occluder_gap(self, data: Any) -> None:
+        self.occluder_gap = data
+
+    def get_occluder_gap(self) -> RandomizableFloat:
+        return choose_random(self.occluder_gap) or None
+
+    @ile_config_setter()
+    def set_occluder_gap_viewport(self, data: Any) -> None:
+        self.occluder_gap_viewport = data
+
+    def get_occluder_gap_viewport(self) -> RandomizableFloat:
+        return choose_random(self.occluder_gap_viewport) or None
+
+    @ile_config_setter()
     def set_passive_physics_floor(self, data: Any) -> None:
         self.passive_physics_floor = data
 
     def get_passive_physics_floor(self) -> bool:
         return self.passive_physics_floor or False
 
+    @ile_config_setter()
+    def set_passive_physics_scene(self, data: Any) -> None:
+        self.passive_physics_scene = data
+
+    def get_passive_physics_scene(self) -> bool:
+        return self.passive_physics_scene or False
+
+    @ile_config_setter(validator=ValidateNumber(
+        props=['distance'], min_value=0, null_ok=True))
+    def set_performer_starts_near(self, data: Any) -> None:
+        self.performer_starts_near = data
+
+    def get_performer_distance(self) -> str:
+        return choose_random(self.performer_starts_near)
+
     def get_performer_start_position(
         self,
         room_dimensions: Dict[str, int]
     ) -> Vector3d:
+        if isinstance(self.performer_starts_near, PerformerStartsNearConfig):
+            pass
+        elif isinstance(self.performer_start_position, KeywordLocationConfig):
+            klc: KeywordLocationConfig = self.performer_start_position
+            if klc.keyword != KeywordLocation.ALONG_WALL:
+                raise ILEConfigurationException(
+                    f"Performer start does not support keyword location "
+                    f"'{klc.keyword}'")
+
+            wall_labels = klc.relative_object_label or random.choice([
+                geometry.FRONT_WALL_LABEL,
+                geometry.BACK_WALL_LABEL,
+                geometry.LEFT_WALL_LABEL,
+                geometry.RIGHT_WALL_LABEL])
+            x, z = geometry.get_along_wall_xz(
+                wall_labels,
+                dict(room_dimensions),
+                {'x': geometry.PERFORMER_WIDTH,
+                    'y': geometry.PERFORMER_HEIGHT,
+                    'z': geometry.PERFORMER_WIDTH})
+            return Vector3d(x=x, y=0, z=z)
+
         return choose_position(
             self.performer_start_position,
             geometry.PERFORMER_WIDTH,
@@ -579,11 +1034,14 @@ class GlobalSettingsComponent(ILEComponent):
     @ile_config_setter(validator=ValidateNumber(
         props=['x', 'y', 'z'], null_ok=True))
     def set_performer_start_position(self, data: Any) -> None:
-        self.performer_start_position = VectorFloatConfig(
-            data.x,
-            data.y or 0,
-            data.z
-        ) if data is not None else None
+        if isinstance(data, KeywordLocationConfig):
+            self.performer_start_position = data
+        else:
+            self.performer_start_position = VectorFloatConfig(
+                data.x,
+                data.y or 0,
+                data.z
+            ) if data is not None else None
 
     def get_performer_start_rotation(self) -> Vector3d:
         return choose_rotation(self.performer_start_rotation)
@@ -638,6 +1096,8 @@ class GlobalSettingsComponent(ILEComponent):
         return Vector3d(x=x, y=dims.y, z=z)
 
     def _valid_performer_start(self, template):
+        if isinstance(self.performer_start_position, KeywordLocationConfig):
+            return
         room_x = template.x
         room_y = template.y
         room_z = template.z
@@ -708,23 +1168,29 @@ class GlobalSettingsComponent(ILEComponent):
                 f'config options')
 
     def _get_min_max_room_dimensions(self, room_dim):
-        min = -(room_dim / 2.0) + ADJUSTED_PERFORMER_WIDTH
-        max = (room_dim / 2.0) - ADJUSTED_PERFORMER_WIDTH
+        min = -(room_dim / 2.0) + geometry.PERFORMER_HALF_WIDTH
+        max = (room_dim / 2.0) - geometry.PERFORMER_HALF_WIDTH
         return min, max
 
     def _get_constrained_room_dimension(self, room_dim):
-        return int((room_dim + ADJUSTED_PERFORMER_WIDTH) * 2)
+        return int((room_dim + geometry.PERFORMER_HALF_WIDTH) * 2)
 
     @ile_config_setter()
     def set_restrict_open_doors(self, data: Any) -> None:
         self.restrict_open_doors = data
 
-    def get_restrict_open_doors(
-            self) -> bool:
+    def get_restrict_open_doors(self) -> bool:
         if self.restrict_open_doors is None:
             return False
 
         return self.restrict_open_doors
+
+    @ile_config_setter()
+    def set_restrict_open_objects(self, data: Any) -> None:
+        self.restrict_open_objects = data
+
+    def get_restrict_open_objects(self) -> bool:
+        return self.restrict_open_objects or False
 
     # If not null, all X/Y/Z properties are required.
     @ile_config_setter(validator=ValidateNumber(
@@ -748,6 +1214,14 @@ class GlobalSettingsComponent(ILEComponent):
     def set_room_shape(self, data: Any) -> None:
         self.room_shape = data
 
+    @ile_config_setter()
+    def set_side_wall_opposite_colors(self, data: Any) -> None:
+        self.side_wall_opposite_colors = data
+
+    @ile_config_setter()
+    def set_trapezoidal_room(self, data: Any) -> None:
+        self.trapezoidal_room = data
+
     @ile_config_setter(validator=ValidateOptions(
         options=(materials.ALL_UNRESTRICTED_MATERIAL_LISTS_AND_STRINGS)
     ))
@@ -769,12 +1243,37 @@ class GlobalSettingsComponent(ILEComponent):
     @ile_config_setter(validator=ValidateOptions(
         options=(materials.ALL_UNRESTRICTED_MATERIAL_LISTS_AND_STRINGS)
     ))
+    def set_wall_material(self, data: Any) -> None:
+        self.wall_material = data
+
+    @ile_config_setter(validator=ValidateOptions(
+        options=(materials.ALL_UNRESTRICTED_MATERIAL_LISTS_AND_STRINGS)
+    ))
     def set_wall_right_material(self, data: Any) -> None:
         self.wall_right_material = data
 
     def get_wall_material_data(self) -> Dict[str, MaterialTuple]:
+        if self.side_wall_opposite_colors:
+            material_choice = choose_material_tuple_from_material(
+                materials.OPPOSITE_MATERIALS
+            )
+            data = {
+                'back': material_choice,
+                'front': material_choice,
+                'left': material_choice,
+                'right': material_choice
+            }
+            opposite_choice = materials.OPPOSITE_SETS[material_choice.material]
+            opposite_wall = random.choice(['left', 'right'])
+            data[opposite_wall] = opposite_choice
+            return data
+
         # All walls should use the same default material, so choose it now.
         material_choice = random.choice(materials.ROOM_WALL_MATERIALS)
+        if self.wall_material:
+            material_choice = choose_material_tuple_from_material(
+                self.wall_material
+            )
         back = material_choice
         if self.wall_back_material:
             back = choose_material_tuple_from_material(self.wall_back_material)
@@ -805,11 +1304,14 @@ class GlobalSettingsComponent(ILEComponent):
 
     def get_num_delayed_actions(self) -> int:
         return ((1 if self._delayed_goal else 0) +
+                (1 if self._delayed_position_label else 0) +
                 (1 if self._delayed_rotation_label else 0))
 
     def run_delayed_actions(self, scene: Dict[str, Any]) -> Dict[str, Any]:
         if self._delayed_goal:
             self._attempt_goal(scene)
+        if self._delayed_position_label:
+            self._set_position_by_distance(scene)
         if self._delayed_rotation_label:
             self._set_rotation_by_look_at(scene)
         return scene
@@ -818,6 +1320,60 @@ class GlobalSettingsComponent(ILEComponent):
         reasons = []
         if self._delayed_goal and self._delayed_goal_reason:
             reasons.append(str(self._delayed_goal_reason))
+        if self._delayed_position_label and self._delayed_position_reason:
+            reasons.append(str(self._delayed_rotation_reason))
         if self._delayed_rotation_label and self._delayed_rotation_reason:
             reasons.append(str(self._delayed_rotation_reason))
         return reasons
+
+    def run_actions_at_end_of_scene_generation(self, scene: Scene) -> Scene:
+        if not self.forced_choice_multi_retrieval_target:
+            return scene
+
+        # Use the configured value as the target type.
+        target_type = self.forced_choice_multi_retrieval_target
+
+        # Look for all viable targets on both the left and the right.
+        left_group = []
+        right_group = []
+        for instance in scene.objects:
+            # Skip this object if it is not the target type.
+            if instance['type'] != target_type:
+                continue
+            # Skip this object if it moves upward (assume it is picked up
+            # by a placer and held out-of-reach indefinitely).
+            movement = instance.get('moves')
+            if movement and movement[-1]['vector']['y'] > 0:
+                continue
+            # Assign this object to the left or right group appropriately.
+            if instance['shows'][0]['position']['x'] < 0:
+                left_group.append(instance)
+            if instance['shows'][0]['position']['x'] > 0:
+                right_group.append(instance)
+        # In the unlikely event that both groups have the same number of
+        # viable targets, raise an exception and retry generating the scene.
+        if len(left_group) == len(right_group):
+            raise ILEException(
+                f'Cannot create a forced choice multi retrieval goal with '
+                f'the target type {target_type} because both the left and '
+                f'the right sides have the same number of viable targets: '
+                f'{len(left_group)}'
+            )
+        # Otherwise use the group with more viable targets.
+        use_left_group = len(left_group) > len(right_group)
+        targets = left_group if use_left_group else right_group
+        logger.trace(
+            f'Setting forced choice multi retrieval goal with '
+            f'{len(targets)} {target_type} targets on the '
+            f'{"left" if use_left_group else "right"} side.'
+        )
+        # Set the goal in the scene.
+        scene.goal['category'] = tags.SCENE.MULTI_RETRIEVAL
+        scene.goal['description'] = GoalServices.make_goal_description(
+            scene.goal['category'],
+            targets
+        )
+        scene.goal['metadata'] = {
+            'targets': [{'id': target['id']} for target in targets]
+        }
+        return scene

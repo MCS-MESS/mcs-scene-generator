@@ -46,11 +46,7 @@ OPPOSITE_MATERIALS = [
     AZURE,
     BLUE,
     CHARTREUSE,
-    CYAN,
-    LIME,
-    MAGENTA,
     ORANGE,
-    RED,
     ROSE,
     SPRINGGREEN,
     VIOLET,
@@ -62,18 +58,14 @@ OPPOSITE_SETS = {
     "Custom/Materials/Black": WHITE,
     "Custom/Materials/Blue": YELLOW,
     "Custom/Materials/Chartreuse": VIOLET,
-    "Custom/Materials/Cyan": RED,
     "Custom/Materials/Goldenrod": INDIGO,  # Not an official opposite
     "Custom/Materials/Green": PURPLE,
     "Custom/Materials/Indigo": GOLDENROD,  # Not an official opposite
-    "Custom/Materials/Lime": MAGENTA,
-    "Custom/Materials/Magenta": LIME,
     "Custom/Materials/Maroon": TEAL,
     "Custom/Materials/Navy": OLIVE,
     "Custom/Materials/Olive": NAVY,
     "Custom/Materials/Orange": AZURE,
     "Custom/Materials/Purple": GREEN,
-    "Custom/Materials/Red": CYAN,
     "Custom/Materials/Rose": SPRINGGREEN,
     "Custom/Materials/SpringGreen": ROSE,
     "Custom/Materials/Teal": MAROON,
@@ -190,12 +182,12 @@ _CUSTOM_CARPET_MATERIALS = [
 
 _CUSTOM_DRYWALL_MATERIALS = [
     MaterialTuple(item.material + 'DrywallMCS', item.color)
-    for item in _CUSTOM_MATERIALS
+    for item in _CUSTOM_MATERIALS if item not in [CYAN, MAGENTA]
 ]
 
 _CUSTOM_WOOD_MATERIALS = [
     MaterialTuple(item.material + 'WoodMCS', item.color)
-    for item in _CUSTOM_MATERIALS
+    for item in _CUSTOM_MATERIALS if item not in [CYAN, MAGENTA]
 ]
 
 BLOCK_BLANK_MATERIALS = [
@@ -273,6 +265,33 @@ FABRIC_MATERIALS = [
     MaterialTuple("AI2-THOR/Materials/Fabrics/CarpetWhite 3", ["white"])
     # Don't use highly patterned multicolor carpet textures.
 ] + _CUSTOM_CARPET_MATERIALS
+
+LEATHER_MATERIALS = [
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Leather", ["brown"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Leather2", ["brown"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Leather3", ["brown"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Leather 2", ["black"])
+]
+
+# Only used with antique_armchair_1
+LEATHER_ARMCHAIR_MATERIALS = [
+    MaterialTuple(
+        "UnityAssetStore/Leather_Chair/Assets/Materials/Leather_Chair_NEW_1",
+        ["brown"]),
+    MaterialTuple(
+        "UnityAssetStore/Leather_Chair/Assets/Materials/Leather_Chair_NEW_2",
+        ["grey"]),
+    MaterialTuple(
+        "UnityAssetStore/Leather_Chair/Assets/Materials/Leather_Chair_NEW_3",
+        ["brown"]),
+    MaterialTuple(
+        "UnityAssetStore/Leather_Chair/Assets/Materials/Leather_Chair_NEW_4",
+        ["grey"]),
+    MaterialTuple(
+        "UnityAssetStore/Leather_Chair/Assets/Materials/Leather_Chair_normal_OLD",
+        ["brown"])
+
+]
 
 METAL_MATERIALS = [
     MaterialTuple("AI2-THOR/Materials/Metals/BlackSmoothMeta", ["black"]),
@@ -354,26 +373,102 @@ WOOD_MATERIALS = [
         "UnityAssetStore/Baby_Room/Models/Materials/wood 1", ["brown"])
 ] + _CUSTOM_WOOD_MATERIALS
 
+# Only used with sofa_1
 SOFA_1_MATERIALS = [
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa1_Blue", ["blue"]),
     MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa1_Brown", ["brown"]),
-    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa1_Red", ["red"])
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa1_Gold", ["yellow"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa1_Salmon", ["red"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa1_Red", ["red"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa1_White", ["white"])
 ]
 
+# Only used with sofa_chair_1
 SOFA_CHAIR_1_MATERIALS = [
     MaterialTuple("AI2-THOR/Materials/Fabrics/SofaChair1_Black", ["black"]),
-    MaterialTuple("AI2-THOR/Materials/Fabrics/SofaChair1_Brown", ["brown"])
+    MaterialTuple("AI2-THOR/Materials/Fabrics/SofaChair1_Blue", ["blue"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/SofaChair1_Brown", ["brown"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/SofaChair1_Gold", ["yellow"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/SofaChair1_Salmon", ["red"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/SofaChair1_White", ["white"])
 ]
 
+# Only used with sofa_2 and sofa_chair_2
 SOFA_2_MATERIALS = [
     MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa2_Grey", ["grey"]),
-    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa2_White", ["white"])
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa2_White", ["white"]),
+    MaterialTuple(
+        "AI2-THOR/Materials/Fabrics/SofaChair2_Fabric_AlbedoTransparency", ["grey"])
 ]
 
+# Only used with sofa_3 and sofa_chair_3
 SOFA_3_MATERIALS = [
     MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa3_Blue", ["blue"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa3_Blue_Light", ["blue"]),
     MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa3_Brown", ["brown"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa3_Brown_Pattern", ["brown"]),
     MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa3_Green_Dark", ["green"]),
-    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa3_Red", ["red"])
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa3_Green_Pattern", ["green"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa3_Red", ["red"]),
+    MaterialTuple("AI2-THOR/Materials/Fabrics/Sofa3_White_Pattern", ["white"])
+]
+
+# Only used with sofa_8
+SOFA_8_MATERIALS = [
+    MaterialTuple(
+        "Assets/Addressables/MCS/UnityAssetStore/Furniture/Source/Materials/3Seat_BaseColor", ["red"]),
+    MaterialTuple(
+        "Assets/Addressables/MCS/UnityAssetStore/Furniture/Source/Materials/3SeatDirt_BaseColor", ["red"]),
+    MaterialTuple(
+        "Assets/Addressables/MCS/UnityAssetStore/Furniture/Source/Materials/3Seat2_BaseColor", ["brown"]),
+    MaterialTuple(
+        "Assets/Addressables/MCS/UnityAssetStore/Furniture/Source/Materials/3Seat2D_BaseColor", ["brown"])
+]
+
+# Only used with sofa_chair_8
+SOFA_CHAIR_8_MATERIALS = [
+    MaterialTuple(
+        "Assets/Addressables/MCS/UnityAssetStore/Furniture/Source/Materials/fotel2_BaseColor", ["brown"]),
+    MaterialTuple(
+        "Assets/Addressables/MCS/UnityAssetStore/Furniture/Source/Materials/fotel2D_BaseColor", ["brown"])
+]
+
+# Only used with sofa_9 and sofa_chair_9
+SOFA_9_MATERIALS = [
+    MaterialTuple(
+        "Assets/Addressables/MCS/UnityAssetStore/Furniture/Source/Materials/2Seat_BaseColor", ["red"]),
+    MaterialTuple(
+        "Assets/Addressables/MCS/UnityAssetStore/Furniture/Source/Materials/2SeatD_BaseColor", ["brown"])
+]
+
+# Only used with sofa_chair_4, sofa_chair_5, sofa_chair_6, and sofa_chair_7
+ARMCHAIR_THORKEA_MATERIALS = [
+    MaterialTuple(
+        "AI2-THOR/Objects/Physics/SimObjsPhysics/THORKEA Objects/THORKEA_Assets_Furniture/Armchair/Materials/THORKEA_Armchair_Ekemas_Fabric_Mat", ["grey"]),
+    MaterialTuple(
+        "AI2-THOR/Objects/Physics/SimObjsPhysics/THORKEA Objects/THORKEA_Assets_Furniture/Armchair/Materials/THORKEA_Armchair_Ektorp_Fabric_Mat", ["brown"]),
+    MaterialTuple(
+        "AI2-THOR/Objects/Physics/SimObjsPhysics/THORKEA Objects/THORKEA_Assets_Furniture/Armchair/Materials/THORKEA_Armchair_Emmabo_Fabric_Mat", ["blue"]),
+    MaterialTuple(
+        "AI2-THOR/Objects/Physics/SimObjsPhysics/THORKEA Objects/THORKEA_Assets_Furniture/Armchair/Materials/THORKEA_Armchair_Karlstad_Fabric_Mat", ["blue"]),
+    MaterialTuple(
+        "AI2-THOR/Objects/Physics/SimObjsPhysics/THORKEA Objects/THORKEA_Assets_Furniture/Armchair/Materials/THORKEA_Armchair_Overalt_Fabric_Mat", ["brown"]),
+    MaterialTuple(
+        "AI2-THOR/Objects/Physics/SimObjsPhysics/THORKEA Objects/THORKEA_Assets_Furniture/Armchair/Materials/THORKEA_Armchair_Tullsta_Fabric_Mat", ["white"])
+]
+
+# Only used with sofa_4, sofa_5, sofa_6, and sofa_7
+SOFA_THORKEA_MATERIALS = [
+    MaterialTuple(
+        "AI2-THOR/Objects/Physics/SimObjsPhysics/THORKEA Objects/THORKEA_Assets_Furniture/Sofa/Materials/THORKEA_Sofa_Alrid_Fabric_Mat", ["grey"]),
+    MaterialTuple(
+        "AI2-THOR/Objects/Physics/SimObjsPhysics/THORKEA Objects/THORKEA_Assets_Furniture/Sofa/Materials/THORKEA_Sofa_Ektorp_Fabric_Mat", ["white"]),
+    MaterialTuple(
+        "AI2-THOR/Objects/Physics/SimObjsPhysics/THORKEA Objects/THORKEA_Assets_Furniture/Sofa/Materials/THORKEA_Sofa_Kramfors_Fabric_Mat", ["brown"]),
+    MaterialTuple(
+        "AI2-THOR/Objects/Physics/SimObjsPhysics/THORKEA Objects/THORKEA_Assets_Furniture/Sofa/Materials/THORKEA_Sofa_Solsta_Fabric_Mat", ["grey"]),
+    MaterialTuple(
+        "AI2-THOR/Objects/Physics/SimObjsPhysics/THORKEA Objects/THORKEA_Assets_Furniture/Sofa/Materials/THORKEA_Sofa_Vreta_Fabric_Mat", ["white"])
 ]
 
 # Choose only ceramic, fabric, metal, and wood materials that aren't too shiny
@@ -521,12 +616,15 @@ FLAT_MATERIALS = [
 
 # Lists for all currently configurable materials, except for the lava.
 ALL_CONFIGURABLE_MATERIAL_LIST_NAMES = [
+    'ARMCHAIR_THORKEA_MATERIALS',
     'BLOCK_BLANK_MATERIALS',
     'BLOCK_LETTER_MATERIALS',
     'BLOCK_NUMBER_MATERIALS',
     'CARDBOARD_MATERIALS',
     'CERAMIC_MATERIALS',
     'FABRIC_MATERIALS',
+    'LEATHER_MATERIALS',
+    'LEATHER_ARMCHAIR_MATERIALS',
     'METAL_MATERIALS',
     'PLASTIC_MATERIALS',
     'RUBBER_MATERIALS',
@@ -536,6 +634,10 @@ ALL_CONFIGURABLE_MATERIAL_LIST_NAMES = [
     'SOFA_CHAIR_1_MATERIALS',
     'SOFA_2_MATERIALS',
     'SOFA_3_MATERIALS',
+    'SOFA_8_MATERIALS',
+    'SOFA_CHAIR_8_MATERIALS',
+    'SOFA_9_MATERIALS',
+    'SOFA_THORKEA_MATERIALS',
     'FLAT_MATERIALS'
 ]
 ALL_CONFIGURABLE_MATERIAL_LISTS = [
@@ -558,7 +660,9 @@ ALL_UNRESTRICTED_MATERIAL_LIST_NAMES = [
     'CARDBOARD_MATERIALS',
     'CERAMIC_MATERIALS',
     'FABRIC_MATERIALS',
+    'LEATHER_MATERIALS',
     'METAL_MATERIALS',
+    'OPPOSITE_MATERIALS',
     'PLASTIC_MATERIALS',
     'RUBBER_MATERIALS',
     'WALL_MATERIALS',
@@ -584,6 +688,7 @@ ALL_PRIMITIVE_MATERIAL_TUPLES = (
     BLOCK_BLANK_MATERIALS +
     CERAMIC_MATERIALS +
     FABRIC_MATERIALS +
+    LEATHER_MATERIALS +
     METAL_MATERIALS +
     PLASTIC_MATERIALS +
     RUBBER_MATERIALS +

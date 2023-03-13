@@ -9,7 +9,7 @@ from typing import (
     Union,
     get_args,
     get_origin,
-    get_type_hints,
+    get_type_hints
 )
 
 from .defs import ILEException
@@ -102,7 +102,11 @@ def _validate_cast_data(prop: str, data: Any, typing: Type) -> Any:
                 for index, item in enumerate(cast_data)
             ]
 
-        # Assume a Dict will always have two types like Dict[str, Any]
+        # If a Dict does not have any types, simply return the data.
+        if origin_typing == dict and len(get_args(viable_typing)) == 0:
+            return cast_data
+
+        # Otherwise a Dict will always have two types like Dict[str, Any]
         nested_typing_of_dict: Type = (
             get_args(viable_typing)[1] if origin_typing == dict else None
         )

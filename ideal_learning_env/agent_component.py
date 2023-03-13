@@ -5,16 +5,16 @@ from typing import Any, Dict, List, Union
 from generator.agents import (
     AGENT_ANIMATIONS,
     AGENT_MOVEMENT_ANIMATIONS,
-    AGENT_TYPES,
+    AGENT_TYPES
 )
 from ideal_learning_env.agent_service import (
     DEFAULT_TEMPLATE_AGENT_MOVEMENT,
-    AgentConfig,
+    AgentConfig
 )
-from ideal_learning_env.defs import find_bounds, return_list
+from ideal_learning_env.defs import ILEDelayException, find_bounds, return_list
 from ideal_learning_env.feature_creation_service import (
     FeatureCreationService,
-    FeatureTypes,
+    FeatureTypes
 )
 from ideal_learning_env.numerics import MinMaxInt
 
@@ -103,10 +103,35 @@ class SpecificAgentComponent(ILEComponent):
                 f'{vars(template)}'
             )
             for _ in range(num):
-                FeatureCreationService.create_feature(
-                    scene, FeatureTypes.AGENT, template, bounds)
+                try:
+                    FeatureCreationService.create_feature(
+                        scene, FeatureTypes.AGENT, template, bounds)
+                except ILEDelayException as e:
+                    logger.trace(
+                        'Failed to generate agent due to needing delay.'
+                    )
+                    self._delayed_templates.append((template, e))
 
         return scene
+
+    def get_num_delayed_actions(self) -> int:
+        return len(self._delayed_templates)
+
+    def run_delayed_actions(self, scene: Dict[str, Any]) -> Dict[str, Any]:
+        delayed = self._delayed_templates
+        self._delayed_templates = []
+        if delayed:
+            bounds = find_bounds(scene)
+            for template, _ in delayed:
+                try:
+                    FeatureCreationService.create_feature(
+                        scene, FeatureTypes.AGENT, template, bounds)
+                except ILEDelayException as e:
+                    self._delayed_templates.append((template, e))
+        return scene
+
+    def get_delayed_action_error_strings(self) -> List[str]:
+        return [str(err) for _, err in self._delayed_templates]
 
 
 MOVEMENT_CHANCE = 0.5

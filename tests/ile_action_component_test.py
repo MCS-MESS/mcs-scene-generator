@@ -1,9 +1,15 @@
+import random
+
 import pytest
 
 from ideal_learning_env.actions_component import ActionRestrictionsComponent
 from ideal_learning_env.defs import ILEConfigurationException, ILEException
 
-from .ile_helper import prior_scene
+from .ile_helper import (
+    create_placers_turntables_scene,
+    create_test_obj_scene,
+    prior_scene
+)
 
 
 def test_action_restrictions_defaults():
@@ -13,6 +19,7 @@ def test_action_restrictions_defaults():
     assert component.freezes is None
     assert component.swivels is None
     assert component.teleports is None
+    assert component.sidesteps is None
 
     scene = component.update_ile_scene(prior_scene())
     goal = scene.goal
@@ -1059,6 +1066,36 @@ def test_action_restriction_teleport():
             assert len(inner) == 0
 
 
+def test_action_restriction_teleport_look_at_center_facing_forward():
+    component = ActionRestrictionsComponent({
+        'teleports': [{
+            'step': 1,
+            'position_x': 0,
+            'position_z': -4.5,
+            'look_at_center': True
+        }]
+    })
+    scene = component.update_ile_scene(prior_scene())
+    assert scene.goal['action_list'][0] == [
+        'EndHabituation,xPosition=0,zPosition=-4.5,yRotation=0'
+    ]
+
+
+def test_action_restriction_teleport_look_at_center_facing_back():
+    component = ActionRestrictionsComponent({
+        'teleports': [{
+            'step': 1,
+            'position_x': 0,
+            'position_z': 4.5,
+            'look_at_center': True
+        }]
+    })
+    scene = component.update_ile_scene(prior_scene())
+    assert scene.goal['action_list'][0] == [
+        'EndHabituation,xPosition=0,zPosition=4.5,yRotation=180'
+    ]
+
+
 def test_action_restriction_teleport_choice():
     component = ActionRestrictionsComponent({
         'teleports': [[{
@@ -1512,3 +1549,118 @@ def test_action_restriction_passive_swivel_error():
 
     with pytest.raises(ILEConfigurationException):
         component.update_ile_scene(prior_scene(100))
+
+
+def test_action_sidesteps():
+    start_step = 1
+    object_label = 'object'
+    degrees = 90
+    component = ActionRestrictionsComponent({
+        'sidesteps': [
+            {
+                'begin': start_step,
+                'object_label': object_label,
+                'degrees': degrees
+            },
+            {
+                'begin': start_step + 100,
+                'object_label': object_label,
+                'degrees': -degrees
+            },
+        ]
+    })
+    sidesteps = component.get_sidesteps()
+    assert isinstance(sidesteps, list)
+    assert sidesteps[0].begin == start_step
+    assert sidesteps[1].begin == start_step + 100
+    assert sidesteps[0].object_label == object_label
+    assert sidesteps[1].object_label == object_label
+    assert sidesteps[0].degrees == degrees
+    assert sidesteps[1].degrees == -degrees
+
+    scene = component.update_ile_scene(create_test_obj_scene(0, 3))
+    assert component.get_num_delayed_actions() == 1
+    scene = component.run_delayed_actions(scene)
+    assert component.get_num_delayed_actions() == 0
+
+    goal = scene.goal
+    assert isinstance(goal, dict)
+    al = goal['action_list']
+    assert isinstance(al, list)
+    assert len(al) == 218
+    for action in al:
+        assert action in [
+            ["MoveRight"],
+            ["MoveLeft"],
+            ["RotateRight"],
+            ["RotateLeft"],
+            []
+        ]
+
+
+def test_action_sidesteps_error():
+    start_step = 1
+    object_label = 'object'
+    degrees = 91
+    component = ActionRestrictionsComponent({
+        'sidesteps': [
+            {
+                'begin': start_step,
+                'object_label': object_label,
+                'degrees': degrees
+            }
+        ]
+    })
+    sidesteps = component.get_sidesteps()
+    assert isinstance(sidesteps, list)
+    assert sidesteps[0].begin == start_step
+    assert sidesteps[0].object_label == object_label
+    assert sidesteps[0].degrees == degrees
+
+    scene = component.update_ile_scene(create_test_obj_scene(0, 3))
+    assert component.get_num_delayed_actions() == 1
+    with pytest.raises(ILEException):
+        component.run_delayed_actions(scene)
+
+
+def test_action_freeze_while_moving():
+    labels = ['placers', 'turntables', ['placers', 'turntables']]
+    for label in labels:
+        component = ActionRestrictionsComponent({
+            'freeze_while_moving': label
+        })
+        scene = component.update_ile_scene(create_placers_turntables_scene(
+            random.randint(1, 50), random.randint(1, 50)))
+        freeze_while_moving = component.freeze_while_moving
+        assert (isinstance(freeze_while_moving, str) or
+                isinstance(freeze_while_moving, list))
+        assert freeze_while_moving in labels
+        component.run_actions_at_end_of_scene_generation(scene)
+        # middle objects are the multiple placers
+        moves = \
+            max(scene.objects[1:-1],
+                key=lambda x: 0 if not x.get('moves') else
+                x['moves'][-1]['stepEnd'])['moves'][-1]['stepEnd']
+        # last object is the one turntable
+        rotates = scene.objects[-1]['rotates'][-1]['stepEnd']
+        passes = \
+            [["Pass"]] * (moves if freeze_while_moving == 'placers' else
+                          rotates if freeze_while_moving == 'turntables' else
+                          max(moves, rotates))
+        assert scene.goal['action_list'] == passes
+
+
+def test_action_freeze_while_moving_error():
+    component = ActionRestrictionsComponent({
+        'freezes': [{
+            'end': 5
+        }],
+        'freeze_while_moving': 'placers'
+    })
+    scene = component.update_ile_scene(create_placers_turntables_scene())
+    freeze_while_moving = component.freeze_while_moving
+    assert isinstance(freeze_while_moving, str)
+    freeze_while_moving = component.freeze_while_moving
+    assert freeze_while_moving == 'placers'
+    with pytest.raises(ILEException):
+        component.run_actions_at_end_of_scene_generation(scene)

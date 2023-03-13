@@ -8,8 +8,11 @@ from generator import (
     DefinitionDataset,
     ObjectBounds,
     geometry,
-    specific_objects,
+    specific_objects
 )
+from generator.base_objects import create_soccer_ball
+from generator.geometry import calculate_rotations, rotate_point_around_origin
+from generator.instances import instantiate_object
 from generator.separating_axis_theorem import sat_entry
 
 DEFAULT_ROOM_X_MAX = (geometry.DEFAULT_ROOM_DIMENSIONS['x'] / 2.0)
@@ -25,8 +28,11 @@ ALL_DEFINITIONS = [
     for definition_selections in DATASET._definition_groups
     for definition_variations in definition_selections
 ]
-# Reassign the dataset to use the filtered definition list for faster testing.
-DATASET = DefinitionDataset([[ALL_DEFINITIONS]])
+# Reassign the dataset to just have one variation (color) for faster testing.
+DATASET = DefinitionDataset([
+    [[variations[0]] for variations in selections]
+    for selections in DATASET._definition_groups
+])
 
 
 # Use the sofa because it should obstruct any pickupable object.
@@ -423,6 +429,42 @@ def test_create_object_bounds_box_rotation45_offset_position_xz():
         offset={'x': 1, 'y': 0, 'z': 1},
         position={'x': 7, 'y': 0, 'z': 7},
         rotation={'x': 0, 'y': 45, 'z': 0},
+        standing_y=0
+    ).box_xz
+    assert vars(new_a) == pytest.approx(a)
+    assert vars(new_b) == pytest.approx(b)
+    assert vars(new_c) == pytest.approx(c)
+    assert vars(new_d) == pytest.approx(d)
+
+
+def test_create_bounds_rotation_more_than_360():
+    a = {'x': 2.232051, 'y': 0, 'z': -0.133975}
+    b = {'x': 1.232051, 'y': 0, 'z': -1.866025}
+    c = {'x': -2.232051, 'y': 0, 'z': 0.133975}
+    d = {'x': -1.232051, 'y': 0, 'z': 1.866025}
+    new_a, new_b, new_c, new_d = geometry.create_bounds(
+        dimensions={'x': 4, 'y': 1, 'z': 2},
+        offset={'x': 0, 'y': 0, 'z': 0},
+        position={'x': 0, 'y': 0, 'z': 0},
+        rotation={'x': 0, 'y': 390, 'z': 0},
+        standing_y=0
+    ).box_xz
+    assert vars(new_a) == pytest.approx(a)
+    assert vars(new_b) == pytest.approx(b)
+    assert vars(new_c) == pytest.approx(c)
+    assert vars(new_d) == pytest.approx(d)
+
+
+def test_create_bounds_rotation_negative():
+    a = {'x': 1.232051, 'y': 0, 'z': 1.866025}
+    b = {'x': 2.232051, 'y': 0, 'z': 0.133975}
+    c = {'x': -1.232051, 'y': 0, 'z': -1.866025}
+    d = {'x': -2.232051, 'y': 0, 'z': -0.133975}
+    new_a, new_b, new_c, new_d = geometry.create_bounds(
+        dimensions={'x': 4, 'y': 1, 'z': 2},
+        offset={'x': 0, 'y': 0, 'z': 0},
+        position={'x': 0, 'y': 0, 'z': 0},
+        rotation={'x': 0, 'y': -30, 'z': 0},
         standing_y=0
     ).box_xz
     assert vars(new_a) == pytest.approx(a)
@@ -866,6 +908,77 @@ def test_get_position_in_back_of_performer():
         ).within(rear_poly)
 
 
+def test_get_location_adjacent_to_performer():
+    perf_start = {
+        'rotation': {'x': 0, 'y': 0, 'z': 0},
+        'position': {'x': 1, 'y': 0, 'z': 2}
+    }
+    room_dim = {'x': 15, 'y': 3, 'z': 15}
+
+    defn = create_soccer_ball(0.5)
+
+    loc = geometry.get_location_adjacent_to_performer(
+        performer_start=perf_start,
+        room_dimensions=room_dim,
+        target_definition_or_instance=defn,
+        direction_rotation=0,
+        distance=1)
+
+    pos = loc['position']
+    assert pos['x'] == 1
+    assert pos['y'] == 0.055
+    assert pos['z'] == pytest.approx(3.305)
+
+    loc = geometry.get_location_adjacent_to_performer(
+        performer_start=perf_start,
+        room_dimensions=room_dim,
+        target_definition_or_instance=defn,
+        direction_rotation=90,
+        distance=0.5)
+
+    pos = loc['position']
+    assert pos['x'] == pytest.approx(1.805)
+    assert pos['z'] == pytest.approx(2)
+
+    perf_start = {
+        'rotation': {'x': 0, 'y': 60, 'z': 0},
+        'position': {'x': 1, 'y': 0, 'z': 2}
+    }
+
+    loc = geometry.get_location_adjacent_to_performer(
+        performer_start=perf_start,
+        room_dimensions=room_dim,
+        target_definition_or_instance=defn,
+        direction_rotation=0,
+        distance=1)
+
+    pos = loc['position']
+    assert pos['x'] == pytest.approx(2.1301631519386923)
+    assert pos['z'] == pytest.approx(2.6525)
+
+    loc = geometry.get_location_adjacent_to_performer(
+        performer_start=perf_start,
+        room_dimensions=room_dim,
+        target_definition_or_instance=defn,
+        direction_rotation=180,
+        distance=0.7)
+
+    pos = loc['position']
+    assert pos['x'] == pytest.approx(0.12964446919663952)
+    assert pos['z'] == pytest.approx(1.4974999999999996)
+
+    loc = geometry.get_location_adjacent_to_performer(
+        performer_start=perf_start,
+        room_dimensions=room_dim,
+        target_definition_or_instance=defn,
+        direction_rotation=235,
+        distance=0.25)
+
+    pos = loc['position']
+    assert pos['x'] == pytest.approx(0.49699917819465933)
+    assert pos['z'] == pytest.approx(2.234553135266088)
+
+
 def test_get_position_in_back_of_performer_next_to_room_wall():
     performer_start = {
         'position': {
@@ -1293,7 +1406,7 @@ def test_generate_location_in_line_with_object():
             assert location
             object_2_poly = geometry.get_bounding_polygon(location)
             # Location is close to 1st object.
-            assert object_2_poly.distance(object_1_poly) < 0.105
+            assert object_2_poly.distance(object_1_poly) < 0.505
             # Location is in the room and does not overlap with 1st object.
             assert geometry.validate_location_rect(
                 location['boundingBox'],
@@ -1426,7 +1539,7 @@ def test_generate_location_in_line_with_object_diagonal():
             assert location
             object_2_poly = geometry.get_bounding_polygon(location)
             # Location is close to 1st object.
-            assert object_2_poly.distance(object_1_poly) < 0.105
+            assert object_2_poly.distance(object_1_poly) < 0.505
             # Location is in the room and does not overlap with 1st object.
             assert geometry.validate_location_rect(
                 location['boundingBox'],
@@ -1491,7 +1604,7 @@ def test_generate_location_in_line_with_object_adjacent():
             assert location
             object_2_poly = geometry.get_bounding_polygon(location)
             # Location is close to 1st object.
-            assert object_2_poly.distance(object_1_poly) < 0.105
+            assert object_2_poly.distance(object_1_poly) < 0.505
             # Location is in the room and does not overlap with 1st object.
             assert geometry.validate_location_rect(
                 location['boundingBox'],
@@ -1546,7 +1659,7 @@ def test_generate_location_in_line_with_object_adjacent_diagonal():
             assert location
             object_2_poly = geometry.get_bounding_polygon(location)
             # Location is close to 1st object.
-            assert object_2_poly.distance(object_1_poly) < 0.105
+            assert object_2_poly.distance(object_1_poly) < 0.505
             # Location is in the room and does not overlap with 1st object.
             assert geometry.validate_location_rect(
                 location['boundingBox'],
@@ -1605,7 +1718,7 @@ def test_generate_location_in_line_with_object_behind():
             assert location
             object_2_poly = geometry.get_bounding_polygon(location)
             # Location is close to 1st object.
-            assert object_2_poly.distance(object_1_poly) < 0.105
+            assert object_2_poly.distance(object_1_poly) < 0.505
             # Location is in the room and does not overlap with 1st object.
             assert geometry.validate_location_rect(
                 location['boundingBox'],
@@ -1666,7 +1779,7 @@ def test_generate_location_in_line_with_object_behind_diagonal():
             assert location
             object_2_poly = geometry.get_bounding_polygon(location)
             # Location is close to 1st object.
-            assert object_2_poly.distance(object_1_poly) < 0.105
+            assert object_2_poly.distance(object_1_poly) < 0.505
             # Location is in the room and does not overlap with 1st object.
             assert geometry.validate_location_rect(
                 location['boundingBox'],
@@ -1731,7 +1844,7 @@ def test_generate_location_in_line_with_object_obstruct():
             assert location
             object_2_poly = geometry.get_bounding_polygon(location)
             # Location is close to 1st object. (Bigger because of sofas.)
-            assert object_2_poly.distance(object_1_poly) <= 0.5
+            assert object_2_poly.distance(object_1_poly) <= 1
             # Location is in the room and does not overlap with 1st object.
             assert geometry.validate_location_rect(
                 location['boundingBox'],
@@ -1792,7 +1905,7 @@ def test_generate_location_in_line_with_object_obstruct_diagonal():
             assert location
             object_2_poly = geometry.get_bounding_polygon(location)
             # Location is close to 1st object. (Bigger because of sofas.)
-            assert object_2_poly.distance(object_1_poly) <= 0.5
+            assert object_2_poly.distance(object_1_poly) <= 1
             # Location is in the room and does not overlap with 1st object.
             assert geometry.validate_location_rect(
                 location['boundingBox'],
@@ -2083,57 +2196,67 @@ def test_generate_location_in_line_with_object_unreachable_diagonal():
 
 
 def test_retrieve_obstacle_occluder_definition_list():
+    failed = False
     for object_definition in ALL_DEFINITIONS:
-        object_dimensions = vars(
-            object_definition.closedDimensions or object_definition.dimensions
-        )
-        definition_list = geometry.retrieve_obstacle_occluder_definition_list(
+        # Only test the small, pickupable objects.
+        if 'pickupable' not in object_definition.attributes:
+            continue
+        object_dimensions = vars(object_definition.dimensions)
+        # Find a valid obstacle.
+        output = geometry.retrieve_obstacle_occluder_definition_list(
             object_definition,
             DATASET,
             False
         )
-        for bigger_definition_result in definition_list:
-            bigger_definition, angle = bigger_definition_result
-            bigger_dimensions = vars(
-                bigger_definition.closedDimensions or
-                bigger_definition.dimensions
-            )
-            assert bigger_definition.obstacle
-            assert bigger_dimensions['y'] >= 0.2
-            assert bigger_definition.mass > 2
-            if angle == 0:
-                assert bigger_dimensions['x'] >= object_dimensions['x']
-            else:
-                # We rotate the bigger object so compare its side to the
-                # original object's front.
-                assert bigger_dimensions['z'] >= object_dimensions['x']
+        if not output:
+            print(f'Failed: {object_definition}')
+            failed = True
+            continue
+        # Ensure the obstacle meets the requirements.
+        bigger_definition, angle = output
+        bigger_dimensions = vars(bigger_definition.dimensions)
+        assert bigger_definition.obstacle
+        assert bigger_dimensions['y'] >= 0.2
+        assert bigger_definition.mass > 2
+        if angle == 0:
+            assert bigger_dimensions['x'] >= object_dimensions['x']
+        else:
+            # We rotate the bigger object so compare its side to the
+            # original object's front.
+            assert bigger_dimensions['z'] >= object_dimensions['x']
+    assert not failed
 
 
 def test_retrieve_obstacle_occluder_definition_list_is_occluder():
+    failed = False
     for object_definition in ALL_DEFINITIONS:
-        object_dimensions = vars(
-            object_definition.closedDimensions or object_definition.dimensions
-        )
-        definition_list = geometry.retrieve_obstacle_occluder_definition_list(
+        # Only test the small, pickupable objects.
+        if 'pickupable' not in object_definition.attributes:
+            continue
+        object_dimensions = vars(object_definition.dimensions)
+        # Find a valid occluder.
+        output = geometry.retrieve_obstacle_occluder_definition_list(
             object_definition,
             DATASET,
             True
         )
-        for bigger_definition_result in definition_list:
-            bigger_definition, angle = bigger_definition_result
-            bigger_dimensions = vars(
-                bigger_definition.closedDimensions or
-                bigger_definition.dimensions
-            )
-            assert bigger_definition.occluder
-            assert bigger_dimensions['y'] >= object_dimensions['y']
-            assert bigger_definition.mass > 2
-            if angle == 0:
-                assert bigger_dimensions['x'] >= object_dimensions['x']
-            else:
-                # We rotate the bigger object so compare its side to the
-                # original object's front.
-                assert bigger_dimensions['z'] >= object_dimensions['x']
+        if not output:
+            print(f'Failed: {object_definition}')
+            failed = True
+            continue
+        # Ensure the occluder meets the requirements.
+        bigger_definition, angle = output
+        bigger_dimensions = vars(bigger_definition.dimensions)
+        assert bigger_definition.occluder
+        assert bigger_dimensions['y'] >= object_dimensions['y']
+        assert bigger_definition.mass > 2
+        if angle == 0:
+            assert bigger_dimensions['x'] >= object_dimensions['x']
+        else:
+            # We rotate the bigger object so compare its side to the
+            # original object's front.
+            assert bigger_dimensions['z'] >= object_dimensions['x']
+    assert not failed
 
 
 def test_get_bounding_polygon():
@@ -2165,8 +2288,8 @@ def test_create_object_bounds_polygon():
 
 def test_find_performer_bounds():
     expected1 = [
-        {'x': -0.27, 'y': 0, 'z': -0.27}, {'x': -0.27, 'y': 0, 'z': 0.27},
-        {'x': 0.27, 'y': 0, 'z': 0.27}, {'x': 0.27, 'y': 0, 'z': -0.27}
+        {'x': -0.25, 'y': 0, 'z': -0.25}, {'x': -0.25, 'y': 0, 'z': 0.25},
+        {'x': 0.25, 'y': 0, 'z': 0.25}, {'x': 0.25, 'y': 0, 'z': -0.25}
     ]
     actual1 = geometry.find_performer_bounds({'x': 0, 'y': 0, 'z': 0})
     assert vars(actual1.box_xz[0]) == expected1[0]
@@ -2177,8 +2300,8 @@ def test_find_performer_bounds():
     assert actual1.min_y == 0
 
     expected2 = [
-        {'x': 0.73, 'y': 0, 'z': 0.73}, {'x': 0.73, 'y': 0, 'z': 1.27},
-        {'x': 1.27, 'y': 0, 'z': 1.27}, {'x': 1.27, 'y': 0, 'z': 0.73}
+        {'x': 0.75, 'y': 0, 'z': 0.75}, {'x': 0.75, 'y': 0, 'z': 1.25},
+        {'x': 1.25, 'y': 0, 'z': 1.25}, {'x': 1.25, 'y': 0, 'z': 0.75}
     ]
     actual2 = geometry.find_performer_bounds({'x': 1, 'y': 1, 'z': 1})
     assert vars(actual2.box_xz[0]) == expected2[0]
@@ -3095,25 +3218,31 @@ def test_object_x_to_occluder_x():
     assert result == 0
 
     result = geometry.object_x_to_occluder_x(1, 2, 1, 0, -4)
-    assert result == pytest.approx(0.833333)
+    assert result == 0.8333
 
     result = geometry.object_x_to_occluder_x(2, 2, 1, 0, -4)
-    assert result == pytest.approx(1.666667)
+    assert result == 1.6667
 
     result = geometry.object_x_to_occluder_x(1, 2, 1, -1, -4)
-    assert result == pytest.approx(1.666667)
+    assert result == 0.6667
 
     result = geometry.object_x_to_occluder_x(1, 4, 1, 0, -4)
-    assert result == pytest.approx(0.625)
+    assert result == 0.625
 
     result = geometry.object_x_to_occluder_x(1, 2, 1, 0, -6)
-    assert result == pytest.approx(0.875)
+    assert result == 0.875
 
     result = geometry.object_x_to_occluder_x(3, 4, 1, 0, -4)
-    assert result == pytest.approx(1.875)
+    assert result == 1.875
 
     result = geometry.object_x_to_occluder_x(1, 4, 2, 0, -4)
-    assert result == pytest.approx(0.75)
+    assert result == 0.75
+
+    result = geometry.object_x_to_occluder_x(11, 4, 2, 10, -4)
+    assert result == 10.75
+
+    result = geometry.object_x_to_occluder_x(-9, 4, 2, -10, -4)
+    assert result == -9.25
 
 
 def test_occluder_x_to_object_x():
@@ -3121,22 +3250,635 @@ def test_occluder_x_to_object_x():
     assert result == 0
 
     result = geometry.occluder_x_to_object_x(1, 1, 2, 0, -4)
-    assert result == pytest.approx(1.2)
+    assert result == 1.2
 
     result = geometry.occluder_x_to_object_x(2, 1, 2, 0, -4)
-    assert result == pytest.approx(2.4)
+    assert result == 2.4
 
     result = geometry.occluder_x_to_object_x(1, 1, 2, -1, -4)
-    assert result == pytest.approx(2.4)
+    assert result == 1.4
 
     result = geometry.occluder_x_to_object_x(1, 1, 4, 0, -4)
-    assert result == pytest.approx(1.6)
+    assert result == 1.6
 
     result = geometry.occluder_x_to_object_x(1, 1, 2, 0, -6)
-    assert result == pytest.approx(1.142857)
+    assert result == 1.1429
 
     result = geometry.occluder_x_to_object_x(3, 1, 4, 0, -4)
-    assert result == pytest.approx(4.8)
+    assert result == 4.8
 
     result = geometry.occluder_x_to_object_x(1, 2, 4, 0, -4)
-    assert result == pytest.approx(1.333333)
+    assert result == 1.3333
+
+    result = geometry.occluder_x_to_object_x(11, 1, 2, 10, -4)
+    assert result == 11.2
+
+    result = geometry.occluder_x_to_object_x(-9, 1, 2, -10, -4)
+    assert result == -8.8
+
+
+def test_get_along_wall_xz():
+    room_dimensions = {'x': 10, 'y': 3, 'z': 30}
+    dimensions = {'x': 0.4, 'y': 1, 'z': 0.6}
+    wall_label = "back_wall"
+    x, z = geometry.get_along_wall_xz(wall_label, room_dimensions, dimensions)
+    assert z == 14.69
+    assert -4.8 < x < 4.8
+    wall_label = "front_wall"
+    x, z = geometry.get_along_wall_xz(wall_label, room_dimensions, dimensions)
+    assert z == -14.69
+    assert -4.8 < x < 4.8
+    wall_label = "left_wall"
+    x, z = geometry.get_along_wall_xz(wall_label, room_dimensions, dimensions)
+    assert x == -4.79
+    assert -14.7 < z < 14.7
+    wall_label = "right_wall"
+    x, z = geometry.get_along_wall_xz(wall_label, room_dimensions, dimensions)
+    assert x == 4.79
+    assert -14.7 < z < 14.7
+
+
+def test_get_along_wall_xz_fail():
+    room_dimensions = {'x': 10, 'y': 3, 'z': 30}
+    dimensions = {'x': 0.4, 'y': 1, 'z': 0.6}
+    wall_label = "not_wall"
+    with pytest.raises(Exception):
+        geometry.get_along_wall_xz(wall_label, room_dimensions, dimensions)
+
+
+def test_calculate_rotations_no_rounding():
+    v1 = Vector3d(x=0, y=0, z=0)
+    result = calculate_rotations(v1, Vector3d(x=0, y=0, z=1), True)
+    assert result == pytest.approx((37.3074, 0))
+    result = calculate_rotations(v1, Vector3d(x=0, y=0, z=2), True)
+    assert result == pytest.approx((20.8568, 0))
+    result = calculate_rotations(v1, Vector3d(x=0, y=0, z=3), True)
+    assert result == pytest.approx((14.2517, 0))
+    result = calculate_rotations(v1, Vector3d(x=0, y=1, z=1), True)
+    assert result == pytest.approx((-13.3873, 0))
+    result = calculate_rotations(v1, Vector3d(x=0, y=0.762, z=1), True)
+    assert result == pytest.approx((0, 0))
+    result = calculate_rotations(v1, Vector3d(x=1, y=0, z=1), True)
+    assert result == pytest.approx((28.3165, 45))
+    result = calculate_rotations(v1, Vector3d(x=1, y=0.762, z=1), True)
+    assert result == pytest.approx((0, 45))
+    result = calculate_rotations(v1, Vector3d(x=2, y=0.762, z=1), True)
+    assert result == pytest.approx((0, 63.4349))
+    result = calculate_rotations(v1, Vector3d(x=2, y=0.762, z=2), True)
+    assert result == pytest.approx((0, 45))
+    result = calculate_rotations(v1, Vector3d(x=3, y=0.762, z=2), True)
+    assert result == pytest.approx((0, 56.3099))
+    result = calculate_rotations(v1, Vector3d(x=4, y=0.762, z=2), True)
+    assert result == pytest.approx((0, 63.4349))
+    result = calculate_rotations(v1, Vector3d(x=-1, y=0.762, z=1), True)
+    assert result == pytest.approx((0, 315))
+
+
+def test_calculate_rotations():
+    v1 = Vector3d(x=0, y=0, z=0)
+    assert calculate_rotations(v1, Vector3d(x=0, y=0, z=1)) == (40, 0)
+    assert calculate_rotations(v1, Vector3d(x=0, y=0, z=2)) == (20, 0)
+    assert calculate_rotations(v1, Vector3d(x=0, y=0, z=3)) == (10, 0)
+    assert calculate_rotations(v1, Vector3d(x=0, y=1, z=1)) == (-10, 0)
+    assert calculate_rotations(v1, Vector3d(x=0, y=0.762, z=1)) == (0, 0)
+    assert calculate_rotations(v1, Vector3d(x=1, y=0, z=1)) == (30, 40)
+    assert calculate_rotations(v1, Vector3d(x=1, y=0.762, z=1)) == (0, 40)
+    assert calculate_rotations(v1, Vector3d(x=2, y=0.762, z=1)) == (0, 60)
+    assert calculate_rotations(v1, Vector3d(x=2, y=0.762, z=2)) == (0, 40)
+    assert calculate_rotations(v1, Vector3d(x=3, y=0.762, z=2)) == (0, 60)
+    assert calculate_rotations(v1, Vector3d(x=4, y=0.762, z=2)) == (0, 60)
+    assert calculate_rotations(v1, Vector3d(x=-1, y=0.762, z=1)) == (0, 320)
+
+
+def test_get_magnitudes_of_x_z_dirs_for_rotation_and_move_vector():
+    right = (1, 0)
+    left = (-1, 0)
+    forward = (0, 1)
+    back = (0, -1)
+    right_forward = (1, 1)
+    left_back = (-1, -1)
+    directions = [right, left, forward, back, right_forward, left_back]
+    rotations = [0, 33, 45, 66, 90, 123, 135, 156, 180,
+                 213, 225, 246, 270, 303, 315, 336, 360]
+    """
+    The expected values below are calculations done beforehand.
+    They are the x,z components derived from moving an object in
+    the directions defined above oriented on each rotation.
+    """
+    x_values = [1.0, -1.0, 0.0, -0.0, 1.0, -1.0, 0.839, -0.839, 0.545, -0.545,
+                1.383, -1.383, 0.707, -0.707, 0.707, -0.707, 1.414, -1.414,
+                0.407, -0.407, 0.914, -0.914, 1.32, -1.32, 0.0, -0.0, 1.0,
+                -1.0, 1.0, -1.0, -0.545, 0.545, 0.839, -0.839, 0.294, -0.294,
+                -0.707, 0.707, 0.707, -0.707, 0.0, -0.0, -0.914, 0.914, 0.407,
+                -0.407, -0.507, 0.507, -1.0, 1.0, 0.0, -0.0, -1.0, 1.0, -0.839,
+                0.839, -0.545, 0.545, -1.383, 1.383, -0.707, 0.707, -0.707,
+                0.707, -1.414, 1.414, -0.407, 0.407, -0.914, 0.914, -1.32,
+                1.32, -0.0, 0.0, -1.0, 1.0, -1.0, 1.0, 0.545, -0.545, -0.839,
+                0.839, -0.294, 0.294, 0.707, -0.707, -0.707, 0.707, -0.0, 0.0,
+                0.914, -0.914, -0.407, 0.407, 0.507, -0.507, 1.0, -1.0, -0.0,
+                0.0, 1.0, -1.0]
+    z_values = [0.0, 0.0, 1.0, -1.0, 1.0, -1.0, -0.545, 0.545, 0.839, -0.839,
+                0.294, -0.294, -0.707, 0.707, 0.707, -0.707, 0.0, 0.0, -0.914,
+                0.914, 0.407, -0.407, -0.507, 0.507, -1.0, 1.0, 0.0, -0.0,
+                -1.0, 1.0, -0.839, 0.839, -0.545, 0.545, -1.383, 1.383,
+                -0.707, 0.707, -0.707, 0.707, -1.414, 1.414, -0.407, 0.407,
+                -0.914, 0.914, -1.32, 1.32, -0.0, 0.0, -1.0, 1.0, -1.0, 1.0,
+                0.545, -0.545, -0.839, 0.839, -0.294, 0.294, 0.707, -0.707,
+                -0.707, 0.707, -0.0, 0.0, 0.914, -0.914, -0.407, 0.407, 0.507,
+                -0.507, 1.0, -1.0, -0.0, 0.0, 1.0, -1.0, 0.839, -0.839, 0.545,
+                -0.545, 1.383, -1.383, 0.707, -0.707, 0.707, -0.707, 1.414,
+                -1.414, 0.407, -0.407, 0.914, -0.914, 1.32, -1.32, 0.0, -0.0,
+                1.0, -1.0, 1.0, -1.0]
+    index = 0
+    for rotation in rotations:
+        for direction in directions:
+            (x, z) = \
+                geometry.get_magnitudes_of_x_z_dirs_for_rotation_and_move_vector(  # noqa
+                    rotation, direction[0], direction[1])
+            assert round(x, 3) == x_values[index]
+            assert round(z, 3) == z_values[index]
+            index += 1
+
+
+def test_generate_location_adjacent_to_small_object():
+    definition = create_soccer_ball(1)
+    instance = instantiate_object(definition, geometry.ORIGIN_LOCATION)
+
+    relative_location_1 = {
+        'position': {'x': 1, 'y': 0.11, 'z': 2},
+        'rotation': {'x': 0, 'y': 0, 'z': 0}
+    }
+    relative_instance_1 = instantiate_object(definition, relative_location_1)
+
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        1.5,
+        3,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': 2.72, 'y': 0.11, 'z': 5.22}
+    )
+    assert location['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0.11, 'z': 2}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        -1.5,
+        -3,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': -0.72, 'y': 0.11, 'z': -1.22}
+    )
+    assert location['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0.11, 'z': 2}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    relative_location_2 = {
+        'position': {'x': -0.5, 'y': 0.11, 'z': -2},
+        'rotation': {'x': 0, 'y': 0, 'z': 0}
+    }
+    relative_instance_2 = instantiate_object(definition, relative_location_2)
+
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_2,
+        4,
+        2,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': 3.72, 'y': 0.11, 'z': 0.22}
+    )
+    assert location['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_2['shows'][0]
+    assert relative_show['position'] == {'x': -0.5, 'y': 0.11, 'z': -2}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_2,
+        -4,
+        -2,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': -4.72, 'y': 0.11, 'z': -4.22}
+    )
+    assert location['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_2['shows'][0]
+    assert relative_show['position'] == {'x': -0.5, 'y': 0.11, 'z': -2}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+
+def test_generate_location_adjacent_to_large_object():
+    definition = create_soccer_ball(1)
+    instance = instantiate_object(definition, geometry.ORIGIN_LOCATION)
+
+    relative_location_1 = {
+        'position': {'x': 1, 'y': 0, 'z': 2},
+        'rotation': {'x': 0, 'y': 0, 'z': 0}
+    }
+    # Dimensions: X=2.64, Z=1.23
+    relative_instance_1 = instantiate_object(
+        LARGEST_OBJECT,
+        relative_location_1
+    )
+
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        0.5,
+        0.5,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': 2.93, 'y': 0.11, 'z': 3.225}
+    )
+    assert location['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0, 'z': 2}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        -2,
+        -1,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': -2.43, 'y': 0.11, 'z': 0.275}
+    )
+    assert location['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0, 'z': 2}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+
+def test_generate_location_adjacent_to_angled_object():
+    definition = create_soccer_ball(1)
+    instance = instantiate_object(definition, geometry.ORIGIN_LOCATION)
+
+    relative_location_1 = {
+        'position': {'x': 0, 'y': 0, 'z': 0},
+        'rotation': {'x': 0, 'y': 30, 'z': 0}
+    }
+    # Dimensions: X=2.64, Z=1.23
+    relative_instance_1 = instantiate_object(
+        LARGEST_OBJECT,
+        relative_location_1
+    )
+
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        0.5,
+        0.5,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': 2.101, 'y': 0.11, 'z': 1.843},
+        abs=1e-3
+    )
+    assert location['rotation'] == {'x': 0, 'y': 30, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 0, 'y': 0, 'z': 0}
+    assert relative_show['rotation'] == {'x': 0, 'y': 30, 'z': 0}
+
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        -0.5,
+        -0.5,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': -2.101, 'y': 0.11, 'z': -1.843},
+        abs=1e-3
+    )
+    assert location['rotation'] == {'x': 0, 'y': 30, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 0, 'y': 0, 'z': 0}
+    assert relative_show['rotation'] == {'x': 0, 'y': 30, 'z': 0}
+
+
+def test_generate_location_adjacent_to_sideways_object():
+    # Dimensions: X=0.2, Z=0.25
+    definition = [
+        item for item in ALL_DEFINITIONS if item.type == 'truck_1' and
+        vars(item.scale) == {'x': 1, 'y': 1, 'z': 1}
+    ][0]
+    assert definition.rotation.y == 90
+    instance = instantiate_object(definition, geometry.ORIGIN_LOCATION)
+
+    relative_location_1 = {
+        'position': {'x': 0, 'y': 0, 'z': 0},
+        'rotation': {'x': 0, 'y': 0, 'z': 0}
+    }
+    # Dimensions: X=2.64, Z=1.23
+    relative_instance_1 = instantiate_object(
+        LARGEST_OBJECT,
+        relative_location_1
+    )
+
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        0.5,
+        0.5,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': 1.92, 'y': 0.1, 'z': 1.24}
+    )
+    assert location['rotation'] == {'x': 0, 'y': 90, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 0, 'y': 0, 'z': 0}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    relative_location_2 = {
+        'position': {'x': 0, 'y': 0, 'z': 0},
+        'rotation': {'x': 0, 'y': 30, 'z': 0}
+    }
+    # Dimensions: X=2.64, Z=1.23
+    relative_instance_2 = instantiate_object(
+        LARGEST_OBJECT,
+        relative_location_2
+    )
+
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_2,
+        0.5,
+        0.5,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': 2.1, 'y': 0.1, 'z': 1.851},
+        abs=1e-3
+    )
+    assert location['rotation'] == {'x': 0, 'y': 120, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_2['shows'][0]
+    assert relative_show['position'] == {'x': 0, 'y': 0, 'z': 0}
+    assert relative_show['rotation'] == {'x': 0, 'y': 30, 'z': 0}
+
+
+def test_generate_location_adjacent_to_invalid():
+    definition = create_soccer_ball(1)
+    instance = instantiate_object(definition, geometry.ORIGIN_LOCATION)
+
+    relative_location_1 = {
+        'position': {'x': 1, 'y': 0.11, 'z': 1},
+        'rotation': {'x': 0, 'y': 0, 'z': 0}
+    }
+    relative_instance_1 = instantiate_object(definition, relative_location_1)
+
+    # Invalid: not inside the room
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        10,
+        10,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert not location
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0.11, 'z': 1}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    # Invalid: too close to the performer agent
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        -0.65,
+        -0.65,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert not location
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0.11, 'z': 1}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    # Invalid: on top of the performer agent
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        -1,
+        -1,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert not location
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0.11, 'z': 1}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    # Invalid: on top of the relative object
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        0,
+        0,
+        geometry.ORIGIN_LOCATION,
+        [],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert not location
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0.11, 'z': 1}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+
+def test_generate_location_adjacent_to_with_bounds():
+    definition = create_soccer_ball(1)
+    instance = instantiate_object(definition, geometry.ORIGIN_LOCATION)
+
+    relative_location_1 = {
+        'position': {'x': 1, 'y': 0.11, 'z': 1},
+        'rotation': {'x': 0, 'y': 0, 'z': 0}
+    }
+    relative_instance_1 = instantiate_object(definition, relative_location_1)
+
+    relative_location_2 = {
+        'position': {'x': 1.66, 'y': 0.11, 'z': 1.66},
+        'rotation': {'x': 0, 'y': 0, 'z': 0}
+    }
+    relative_instance_2 = instantiate_object(definition, relative_location_2)
+    relative_bounds_2 = relative_instance_2['shows'][0]['boundingBox']
+
+    relative_location_3 = {
+        'position': {'x': -1, 'y': 0.11, 'z': 1},
+        'rotation': {'x': 0, 'y': 0, 'z': 0}
+    }
+    relative_instance_3 = instantiate_object(definition, relative_location_3)
+    relative_bounds_3 = relative_instance_3['shows'][0]['boundingBox']
+
+    # Valid: no collision
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        0.11,
+        0.11,
+        geometry.ORIGIN_LOCATION,
+        [relative_bounds_2, relative_bounds_3],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': 1.33, 'y': 0.11, 'z': 1.33}
+    )
+    assert location['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0.11, 'z': 1}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    # Valid: no collision
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        0.76,
+        0.76,
+        geometry.ORIGIN_LOCATION,
+        [relative_bounds_2, relative_bounds_3],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': 1.98, 'y': 0.11, 'z': 1.98}
+    )
+    assert location['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0.11, 'z': 1}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    # Valid: no collision
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        0,
+        0.44,
+        geometry.ORIGIN_LOCATION,
+        [relative_bounds_2, relative_bounds_3],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert location['position'] == pytest.approx(
+        {'x': 1, 'y': 0.11, 'z': 1.66}
+    )
+    assert location['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+    assert location['boundingBox']
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0.11, 'z': 1}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    # Invalid: collides with object 2
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        0.22,
+        0.44,
+        geometry.ORIGIN_LOCATION,
+        [relative_bounds_2, relative_bounds_3],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert not location
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0.11, 'z': 1}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    # Invalid: collides with object 2
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        0.44,
+        0.44,
+        geometry.ORIGIN_LOCATION,
+        [relative_bounds_2, relative_bounds_3],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert not location
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0.11, 'z': 1}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+    # Invalid: collides with object 3
+    location = geometry.generate_location_adjacent_to(
+        instance,
+        relative_instance_1,
+        -1.78,
+        0,
+        geometry.ORIGIN_LOCATION,
+        [relative_bounds_2, relative_bounds_3],
+        {'x': 20, 'y': 3, 'z': 20}
+    )
+    assert not location
+    relative_show = relative_instance_1['shows'][0]
+    assert relative_show['position'] == {'x': 1, 'y': 0.11, 'z': 1}
+    assert relative_show['rotation'] == {'x': 0, 'y': 0, 'z': 0}
+
+
+def test_rotate_point_around_origin():
+    """
+    X and Z points were calculated beforehand. Testing rotating around in a
+    complete circle starting from (1, -1)
+    """
+    x_points = \
+        [1.0, 0.81, 0.6, 0.37, 0.12, -0.12, -0.37, -0.6, -0.81, -1.0, -1.16,
+         -1.28, -1.37, -1.41, -1.41, -1.37, -1.28, -1.16, -1.0, -0.81, -0.6,
+         -0.37, -0.12, 0.12, 0.37, 0.6, 0.81, 1.0, 1.16, 1.28, 1.37, 1.41,
+         1.41, 1.37, 1.28, 1.16, 1.0]
+    z_points = \
+        [-1.0, -1.16, -1.28, -1.37, -1.41, -1.41, -1.37, -1.28, -1.16,
+         -1.0, -0.81, -0.6, -0.37, -0.12, 0.12, 0.37, 0.6, 0.81, 1.0,
+         1.16, 1.28, 1.37, 1.41, 1.41, 1.37, 1.28, 1.16, 1.0, 0.81, 0.6,
+         0.37, 0.12, -0.12, -0.37, -0.6, -0.81, -1.0]
+    index = 0
+    for i in range(0, 37):
+        x, z = rotate_point_around_origin(
+            origin_x=0, origin_z=0, point_x=1, point_z=-1, rotation=i * 10)
+        x = round(x, 2)
+        z = round(z, 2)
+        assert x == x_points[index]
+        assert z == z_points[index]
+        index += 1
