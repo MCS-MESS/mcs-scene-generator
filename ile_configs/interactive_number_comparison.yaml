@@ -1,0 +1,116 @@
+# Add a Multi Retrieval goal with two to five identical soccer balls as the
+# target objects. The performer agent must pick up all targets to succeed.
+# All target objects will be positioned on either the left side or the right
+# side of the room, adjacent to each other.
+goal:
+    category: multi retrieval
+    targets:
+        - num: 1
+          shape: soccer_ball
+          scale:
+              min: 1.0
+              max: 3.0
+          position:
+              - x:
+                  min: -1.75
+                  max: -2.75
+                z:
+                  min: 2.0
+                  max: 4.5
+              - x:
+                  min: 1.75
+                  max: 2.75
+                z:
+                  min: 2.0
+                  max: 4.5
+          rotation:
+              - y: 0
+          labels: target_1
+        - num:
+              # Number of additional target objects, beyond the first.
+              min: 1
+              max: 4
+          shape: soccer_ball
+          identical_to: target_1
+          keyword_location:
+              keyword: adjacent
+              # Options for how close the additional target objects are
+              # positioned adjacent to the original one.
+              adjacent_distance:
+                  - x: 0.1
+                    z: 0
+                  - x: 0.1
+                    z: 0.1
+                  - x: 0
+                    z: 0.1
+                  - x: -0.1
+                    z: 0.1
+                  - x: -0.1
+                    z: 0
+                  - x: -0.1
+                    z: -0.1
+                  - x: 0
+                    z: -0.1
+                  - x: 0.1
+                    z: -0.1
+              relative_object_label: target_1
+
+# Use a specific room size for this task.
+room_dimensions:
+    x: 8
+    y: 6
+    z: 12
+
+# Generate a platform bisecting the room.
+shortcut_bisecting_platform:
+    is_short: true
+
+# Generate one to four objects identical to the target objects but on the
+# opposite side of the room. There will always be fewer of these objects than
+# the target objects. Picking up all these objects will NOT allow the performer
+# agent to succeed, even though they appear identical to the target objects.
+specific_interactable_objects:
+    - num: 1
+      shape: soccer_ball
+      identical_to: target_1
+      labels: non_target_1
+      keyword_location:
+          keyword: opposite_x
+          relative_object_label: target_1
+    - num_targets_minus:
+          # Number of additional non-target objects, based on the number of
+          # target objects, ensuring there are fewer non-target objects.
+          min: 2
+          max: 4
+      shape: soccer_ball
+      identical_to: target_1
+      keyword_location:
+          keyword: adjacent
+          # Options for how close the additional non-target objects are
+          # positioned adjacent to the original one.
+          adjacent_distance:
+              - x: 0.1
+                z: 0
+              - x: 0.1
+                z: 0.1
+              - x: 0
+                z: 0.1
+              - x: -0.1
+                z: 0.1
+              - x: -0.1
+                z: 0
+              - x: -0.1
+                z: -0.1
+              - x: 0
+                z: -0.1
+              - x: 0.1
+                z: -0.1
+          relative_object_label: non_target_1
+
+# Override the defaults to avoid randomly generating any other objects besides
+# the platform, the targets, and the non-targets. Remove these lines if you
+# want additional randomly generated objects.
+keyword_objects:
+    - num: 0
+random_structural_objects:
+    - num: 0

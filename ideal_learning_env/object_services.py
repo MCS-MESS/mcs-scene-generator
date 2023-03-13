@@ -10,7 +10,7 @@ from typing import (
     NamedTuple,
     Tuple,
     TypeVar,
-    Union,
+    Union
 )
 
 from machine_common_sense.config_manager import PerformerStart, Vector3d
@@ -21,20 +21,129 @@ from generator import (
     base_objects,
     containers,
     geometry,
-    instances,
+    instances
 )
 from ideal_learning_env.choosers import choose_random
 from ideal_learning_env.defs import (
+    ILEConfigurationException,
     ILEDelayException,
     ILEException,
-    return_list,
+    RandomizableString,
+    return_list
 )
 
-from .numerics import MinMaxFloat, VectorFloatConfig
+from .numerics import MinMaxFloat, VectorFloatConfig, VectorIntConfig
 
 logger = logging.getLogger(__name__)
 
 DEBUG_FINAL_POSITION_KEY = 'final_position'
+
+
+@dataclass
+class KeywordLocationConfig():
+    """Describes an object's keyword location. Can have the following
+    properties:
+    - `keyword` (string, or list of strings): The keyword location, which can
+    be one of the following:
+        - `adjacent` - The object will be placed near another object. The other
+        object must be referenced by the 'relative_object_label' field, and the
+        distance away from the relative object must be set by the
+        `adjacent_distance` field.
+        - `adjacent_performer` - The object will be placed next to the
+        performer.  The object can be placed in 'front', 'back', left, or
+        'right' of the performer using the 'direction'.  The object
+        can also be specified to be 'in_reach' or 'out_of_reach' via the
+        'distance'.  By default, the object will be placed in a random
+        direction, but 'in_reach'.
+        other object must be referenced by the 'relative_object_label' field.
+        If multiple objects have this label, one will be randomly chosen.
+        - `back` - The object will be placed in the 180 degree arc behind the
+        performer's start position.
+        - `behind` - The object will be placed behind another object, relative
+        to the performer's start position.  The other object must be referenced
+        by the 'relative_object_label' field.  If multiple objects have this
+        label, one will be randomly chosen.
+        - `between` - The object will be placed between the performer's start
+        position and another object.  The other object must be referenced by
+        the 'relative_object_label' field.  If multiple objects have this
+        label, one will be randomly chosen.
+        - `front` - The object will be placed in a line in front of the
+        performer's start position.
+        - `in` - The object will be placed inside a container.  The container
+        must be referenced by the 'container_label' field.  If multiple objects
+        have this label, one will be randomly chosen.
+        - `in_with` - The object will be placed inside a container along with
+        another object.  The container must be referenced by the
+        'container_label' field.  The other object must be referenced by the
+        'relative_object_label' field.  If multiple objects have these label,
+        one will be randomly chosen for each field.
+        - `occlude` - The object will be placed between the performer's start
+        position and another object so that this object completely occludes the
+        view of the other object.  The other object must be referenced by
+        the 'relative_object_label' field.  If multiple objects have this
+        label, one will be randomly chosen.
+        - `on_center` - The object will be placed on top of another object
+        in the center of the bounds.  This option is best for objects the are
+        similar in size or for use cases where objects are desired to be
+        centered.  The object must be referenced by the 'relative_object_label'
+        field.  If multiple objects have this label,
+        one will be randomly chosen.
+        - `on_top` - The object will be placed on top of another object in a
+        random location.  This option is best for when the object is
+        significantly smaller than the object it is placed on (I.E. a small
+        ball on a large platform).  If the objects are similar in size
+        (I.E. two bowls), use 'on_center'.  The object must be referenced by
+        the 'relative_object_label' field.  If multiple objects have this
+        label, one will be randomly chosen.
+        - `opposite_x` - The object will be placed in the exact same location
+        as the object referenced by `relative_object_label` except that its x
+        location will be on the opposite side of the room. Its rotation will
+        also be mirrored, though it can be adjusted using the `rotation`
+        property within this keyword location option. There are no adjustments
+        to find a valid location if another object already exists in the final
+        location.
+        - `opposite_z` - The object will be placed in the exact same location
+        as the object referenced by `relative_object_label` except that its z
+        location will be on the opposite side of the room.  There are no
+        adjustments to find a valid location if another object already exists
+        in final location.
+        - `random` - The object will be positioned in a random location, as if
+        it did not have a keyword location.
+        - `associated_with_agent` - This object will be held by an agent
+        referenced by the 'relative_object_label' field.
+        - `along_wall` - This object will be placed along a wall
+        referenced by the 'relative_object_label' field.  The wall labels are
+        'front_wall', 'back_wall', 'left_wall, and 'right_wall'.  If no wall is
+        provided, a wall will be chosen at random.
+    - `adjacent_distance` (VectorFloatConfig, or list of VectorFloatConfigs):
+    The X/Z distance in global coordinates between this object's position and
+    the relative object's position. Only usable with the `adjacent` `keyword`.
+    By default, this object will be positioned 0.1 away from the relative
+    object in a random, valid direction.
+    - `container_label` (string, or list of strings): The label of a container
+    object that already exists in your configuration. Only required by some
+    keyword locations.
+    - `relative_object_label` (string, or list of strings): The label of a
+    second object that already exists in your configuration. Only required by
+    some keyword locations.
+    - `position_relative_to_start` (VectorFloatConfig, or list of
+    VectorFloatConfigs): Currently only supported with the `on_center` keyword:
+    How much to translate object from the center position of the relative
+    object along the x and z axis. This works like a percentage, represented
+    as x/z values that range from -1.0 to 1.0 (with both of those values being
+    furthest from the center in either direction). Note that this assumes the
+    relative object has a rectangular boundary.
+
+    """
+    keyword: Union[str, List[str]] = None
+    container_label: Union[str, List[str]] = None
+    relative_object_label: Union[str, List[str]] = None
+    distance: Union[str, List[str]] = None
+    direction: Union[str, List[str]] = None
+    position_relative_to_start: Union[VectorFloatConfig,
+                                      List[VectorFloatConfig]] = None
+    adjacent_distance: Union[VectorFloatConfig, List[VectorFloatConfig]] = None
+    rotation: Union[VectorIntConfig, List[VectorIntConfig]] = None
 
 
 class InstanceDefinitionLocationTuple(NamedTuple):
@@ -131,6 +240,7 @@ class ObjectRepository():
 
 class KeywordLocation():
     ADJACENT_TO_OBJECT = "adjacent"
+    ADJACENT_TO_PERFORMER = "adjacent_performer"
     BACK_OF_PERFORMER = "back"
     BEHIND_OBJECT_FROM_PERFORMER = "behind"
     BETWEEN_PERFORMER_OBJECT = "between"
@@ -144,10 +254,28 @@ class KeywordLocation():
     ASSOCIATED_WITH_AGENT = "associated_with_agent"
     OPPOSITE_X = "opposite_x"
     OPPOSITE_Z = "opposite_z"
+    ALONG_WALL = "along_wall"
+
+    ADJACENT_TO_PERFORMER_FRONT = "front"
+    ADJACENT_TO_PERFORMER_BACK = "back"
+    ADJACENT_TO_PERFORMER_LEFT = "left"
+    ADJACENT_TO_PERFORMER_RIGHT = "right"
+    ADJACENT_TO_PERFORMER_IN_REACH = "in_reach"
+    ADJACENT_TO_PERFORMER_OUT_OF_REACH = "out_of_reach"
+
+    ADJACENT_TO_PERFORMER_DIRECTION_DEFAULT = [
+        ADJACENT_TO_PERFORMER_FRONT,
+        ADJACENT_TO_PERFORMER_BACK,
+        ADJACENT_TO_PERFORMER_LEFT,
+        ADJACENT_TO_PERFORMER_RIGHT]
+
+    ADJACENT_TO_PERFORMER_DISTANCE_DEFAULT = [
+        ADJACENT_TO_PERFORMER_IN_REACH]
 
     @staticmethod
     def get_keyword_location_object_tuple(
-        keyword_location,
+        reconciled: KeywordLocationConfig,
+        source: KeywordLocationConfig,
         definition: ObjectDefinition,
         performer_start: PerformerStart,
         bounds: List[ObjectBounds],
@@ -159,13 +287,14 @@ class KeywordLocation():
             definition,
             copy.deepcopy(geometry.ORIGIN_LOCATION)
         )
-        if keyword_location.keyword == KeywordLocation.ASSOCIATED_WITH_AGENT:
+        if reconciled.keyword == KeywordLocation.ASSOCIATED_WITH_AGENT:
             location = None
-            KeywordLocation.associate_with_agent(keyword_location, instance)
+            KeywordLocation.associate_with_agent(reconciled, instance)
         else:
             # Location may be None; will raise an error if unable to position.
             location = KeywordLocation.move_to_keyword_location(
-                keyword_location,
+                reconciled,
+                source,
                 instance,
                 performer_start,
                 bounds,
@@ -173,6 +302,7 @@ class KeywordLocation():
                 definition
             )
         idl = InstanceDefinitionLocationTuple(instance, definition, location)
+        idl.instance['debug']['positionedBy'] = reconciled.keyword
         idl.instance['debug'][DEBUG_FINAL_POSITION_KEY] = True
         return idl
 
@@ -184,7 +314,11 @@ class KeywordLocation():
             raise ILEDelayException(
                 f'{instance["type"]} cannot find relative object label '
                 f'"{label}" for '
-                f'keyword location "{keyword_location.keyword}"')
+                f'keyword location "{keyword_location.keyword}". '
+                f'The relative object label or corresponding '
+                f'keyword could be misspelled, invalid, '
+                f'or does not exist'
+            )
         agent_idl = obj_repo.get_one_from_labeled_objects(label=label)
         agent = agent_idl.instance
         if not agent['id'].startswith('agent'):
@@ -204,7 +338,8 @@ class KeywordLocation():
 
     @staticmethod
     def move_to_keyword_location(
-        keyword_location,
+        reconciled: KeywordLocationConfig,
+        source: KeywordLocationConfig,
         instance: Dict[str, Any],
         performer_start: PerformerStart,
         bounds: List[ObjectBounds],
@@ -215,8 +350,9 @@ class KeywordLocation():
         keyword location, and return the new location, or raise an error if
         unable to position the object. Definition only needed for containment
         locations. Successful containment locations will return None."""
-        con_tag = keyword_location.container_label
-        obj_tag = keyword_location.relative_object_label
+        con_tag = reconciled.container_label
+        obj_tag = reconciled.relative_object_label
+        pos_rel_start = reconciled.position_relative_to_start
         obj_repo = ObjectRepository.get_instance()
 
         # TODO MCS-815 or MCS-1236
@@ -225,7 +361,7 @@ class KeywordLocation():
         performer_start = performer_start.dict()
         room_dimensions = room_dimensions.dict()
 
-        keyword = keyword_location.keyword
+        keyword = reconciled.keyword
 
         if keyword == KeywordLocation.FRONT_OF_PERFORMER:
             location = geometry.get_location_in_front_of_performer(
@@ -237,18 +373,57 @@ class KeywordLocation():
                 performer_start, instance, room_dimensions=room_dimensions)
             return KeywordLocation._move_instance_or_raise_error(
                 instance, location, keyword)
+        if keyword == KeywordLocation.ADJACENT_TO_PERFORMER:
+            distance_label = reconciled.distance or random.choice(
+                KeywordLocation.ADJACENT_TO_PERFORMER_DISTANCE_DEFAULT)
+            direction = reconciled.direction or random.choice(
+                KeywordLocation.ADJACENT_TO_PERFORMER_DIRECTION_DEFAULT)
+            dir_rot = (0 if direction == KeywordLocation.ADJACENT_TO_PERFORMER_FRONT else  # noqa
+                       90 if direction == KeywordLocation.ADJACENT_TO_PERFORMER_RIGHT else  # noqa
+                       180 if direction == KeywordLocation.ADJACENT_TO_PERFORMER_BACK else  # noqa
+                       270 if direction == KeywordLocation.ADJACENT_TO_PERFORMER_LEFT else  # noqa
+                       0)
+            dist = (random.uniform(0.25, 0.9) if
+                    distance_label ==
+                    KeywordLocation.ADJACENT_TO_PERFORMER_IN_REACH else
+                    random.uniform(1.1, 1.2))
+
+            location = geometry.get_location_adjacent_to_performer(
+                performer_start, instance, room_dimensions=room_dimensions,
+                distance=dist, direction_rotation=dir_rot)
+            return KeywordLocation._move_instance_or_raise_error(
+                instance, location, keyword)
+        if keyword == KeywordLocation.ALONG_WALL:
+            wall = obj_tag or [
+                geometry.FRONT_WALL_LABEL,
+                geometry.BACK_WALL_LABEL,
+                geometry.LEFT_WALL_LABEL,
+                geometry.RIGHT_WALL_LABEL]
+            wall = wall if isinstance(wall, list) else [wall]
+            wall = random.choice(wall)
+            location = geometry.get_location_along_wall(
+                performer_start, wall, instance, room_dimensions)
+            return KeywordLocation._move_instance_or_raise_error(
+                instance, location, keyword)
 
         if keyword != KeywordLocation.IN_CONTAINER:
             if not obj_tag or not obj_repo.has_label(obj_tag):
                 raise ILEDelayException(
                     f'{instance["type"]} cannot find relative object label '
-                    f'"{obj_tag}" for keyword location "{keyword}"'
+                    f'"{obj_tag}" for keyword location "{keyword}". '
+                    f'The relative object label or corresponding '
+                    f'keyword could be misspelled, invalid, '
+                    f'or does not exist'
                 )
 
             idl = obj_repo.get_one_from_labeled_objects(obj_tag)
             relative_instance = idl.instance
             relative_defn = idl.definition
             rel_object_location = idl.location
+            relative_instance['debug']['positionedBy'] = (
+                relative_instance['debug'].get('positionedBy') or
+                'relative_label'
+            )
             relative_instance['debug'][DEBUG_FINAL_POSITION_KEY] = True
 
         if keyword in [
@@ -266,8 +441,7 @@ class KeywordLocation():
             )
             return KeywordLocation._move_instance_or_raise_error(
                 instance, location, keyword)
-        if (keyword ==
-                KeywordLocation.BEHIND_OBJECT_FROM_PERFORMER):  # noqa
+        if (keyword == KeywordLocation.BEHIND_OBJECT_FROM_PERFORMER):
             location = geometry.generate_location_in_line_with_object(
                 instance,
                 relative_defn or relative_instance,
@@ -280,29 +454,61 @@ class KeywordLocation():
             return KeywordLocation._move_instance_or_raise_error(
                 instance, location, keyword)
         if keyword == KeywordLocation.ADJACENT_TO_OBJECT:
-            location = geometry.generate_location_in_line_with_object(
-                instance,
-                relative_defn or relative_instance,
-                rel_object_location,
-                performer_start,
-                bounds,
-                adjacent=True,
-                room_dimensions=room_dimensions
-            )
+            # Use all of the configured distances (if any) from the source
+            # template, rather than the single randomly chosen distance that
+            # will be in the reconciled template.
+            distances = return_list(source.adjacent_distance)
+            if not distances:
+                # By default, position the object 0.1 away from the relative
+                # object in a random direction: +X, -X, +Z, or -Z.
+                distances = [
+                    Vector3d(x=0.1, y=0, z=0),
+                    Vector3d(x=-0.1, y=0, z=0),
+                    Vector3d(x=0, y=0, z=0.1),
+                    Vector3d(x=0, y=0, z=-0.1)
+                ]
+            # Loop over each configured (or default) distance in a random order
+            # and use the first valid adjacent location that's found.
+            random.shuffle(distances)
+            for distance in distances:
+                location = geometry.generate_location_adjacent_to(
+                    instance,
+                    relative_instance,
+                    distance.x,
+                    distance.z,
+                    performer_start,
+                    bounds,
+                    room_dimensions=room_dimensions
+                )
+                if location:
+                    break
             return KeywordLocation._move_instance_or_raise_error(
                 instance, location, keyword)
         if keyword == KeywordLocation.OPPOSITE_X:
             location = copy.deepcopy(rel_object_location)
             location['position']['x'] *= -1
-            location['position']['y'] -= (
-                relative_instance['debug']['positionY'])
+            location['position']['y'] += (
+                instance['debug']['positionY'] -
+                relative_instance['debug']['positionY']
+            )
+            # Mirror the object's rotation.
+            mirrored_rotation = (-location['rotation']['y']) % 360
+            location['rotation']['y'] = (
+                mirrored_rotation +
+                # Add the configured rotation, if any.
+                (reconciled.rotation or Vector3d()).y
+            )
+            # Save the mirrored rotation for use elsewhere in the codebase.
+            instance['debug']['mirroredRotation'] = mirrored_rotation
             return KeywordLocation._move_instance_or_raise_error(
                 instance, location, keyword)
         if keyword == KeywordLocation.OPPOSITE_Z:
             location = copy.deepcopy(rel_object_location)
             location['position']['z'] *= -1
-            location['position']['y'] -= (
-                relative_instance['debug']['positionY'])
+            location['position']['y'] += (
+                instance['debug']['positionY'] -
+                relative_instance['debug']['positionY']
+            )
             return KeywordLocation._move_instance_or_raise_error(
                 instance, location, keyword)
         if keyword in [KeywordLocation.ON_OBJECT,
@@ -310,16 +516,34 @@ class KeywordLocation():
             all_idls = obj_repo.get_all_from_labeled_objects(obj_tag)
             random.shuffle(all_idls)
             attempts = 0
+            if (keyword == KeywordLocation.ON_OBJECT_CENTERED and
+                    pos_rel_start is not None):
+
+                pos_rel_start.x = (
+                    pos_rel_start.x if pos_rel_start.x is not None else 0)
+                pos_rel_start.z = (
+                    pos_rel_start.z if pos_rel_start.z is not None else 0)
+
+                if (pos_rel_start.x < -1.0 or pos_rel_start.x > 1.0 or
+                        pos_rel_start.z < -1.0 or pos_rel_start.z > 1.0):
+                    raise ILEConfigurationException(
+                        "position_relative_to_start x and z values must "
+                        "be within the range of -1.0 and 1.0.")
             for idl in all_idls:
                 try:
                     location = geometry.generate_location_on_object(
                         instance,
                         relative_instance, performer_start,
                         bounds, room_dimensions=room_dimensions,
-                        center=(keyword == KeywordLocation.ON_OBJECT_CENTERED))
+                        center=(keyword == KeywordLocation.ON_OBJECT_CENTERED),
+                        position_relative_to_start=pos_rel_start)
                     relative_instance = idl.instance
                     relative_defn = idl.definition
                     rel_object_location = idl.location
+                    relative_instance['debug']['positionedBy'] = (
+                        relative_instance['debug'].get('positionedBy') or
+                        'relative_label'
+                    )
                     relative_instance['debug'][DEBUG_FINAL_POSITION_KEY] = True
                 except Exception:
                     attempts += 1
@@ -339,13 +563,15 @@ class KeywordLocation():
             raise ILEDelayException(
                 f'{instance["type"]} cannot find container object label '
                 f'"{con_tag}" for '
-                f'keyword location "{keyword}"'
+                f'keyword location "{keyword}". '
+                f'The container object label or corresponding '
+                f'keyword could be misspelled, invalid, '
+                f'or does not exist'
             )
 
         idl = obj_repo.get_one_from_labeled_objects(con_tag)
         con_inst = idl.instance
         con_defn = idl.definition
-        con_inst['debug'][DEBUG_FINAL_POSITION_KEY] = True
 
         if keyword == KeywordLocation.IN_CONTAINER:
             indexes = containers.can_contain(con_defn, definition)
@@ -379,6 +605,11 @@ class KeywordLocation():
 
                         instance['togglePhysics'] = tog_list
 
+                con_inst['debug']['positionedBy'] = (
+                    positioned_by or 'container_label'
+                )
+                con_inst['debug'][DEBUG_FINAL_POSITION_KEY] = True
+
                 # Location will be None here because its dependent on the
                 # parent and shouldn't be used to locate other objects
                 return None
@@ -403,7 +634,13 @@ class KeywordLocation():
                     instance, relative_instance, con_inst, idx,
                     orientation, rots[0], rots[1])
                 relative_instance['debug']['positionedBy'] = (
-                    keyword_location.keyword)
+                    relative_instance['debug'].get('positionedBy') or
+                    'relative_label'
+                )
+                con_inst['debug']['positionedBy'] = (
+                    con_inst['debug'].get('positionBy') or 'container_label'
+                )
+                con_inst['debug'][DEBUG_FINAL_POSITION_KEY] = True
                 return None
             else:
                 raise ILEException(
@@ -541,3 +778,52 @@ class RelativePositionConfig():
     use_x: Union[bool, List[bool]] = None
     use_z: Union[bool, List[bool]] = None
     view_angle_x: Union[bool, List[bool]] = None
+
+
+def get_step_after_movement(labels: RandomizableString) -> int:
+    """Return the step after the last step on which all the objects for all the
+    given labels are scripted to end moving or rotating. Raise an
+    ILEDelayException if any of the labels do not have objects."""
+    object_repository = ObjectRepository.get_instance()
+    last_step = 0
+    for label in return_list(labels):
+        if not label:
+            continue
+        objects = object_repository.get_all_from_labeled_objects(label)
+        if not objects:
+            raise ILEDelayException(
+                f'Cannot find any existing objects with label: {label}'
+            )
+        for idl in objects:
+            step = instances.get_earliest_active_step(idl.instance)
+            step = instances.get_last_move_or_rotate_step(idl.instance)
+            if step > last_step:
+                last_step = step
+    return last_step + 1
+
+
+def get_step_after_movement_or_start(labels: RandomizableString) -> int:
+    """Return 1 if all the objects for all the given labels are scripted to
+    begin moving and rotating AFTER step 1 (or not at all); otherwise return
+    the step after the last step on which all the objects for all the given
+    labels are scripted to end moving or rotating. Raise an ILEDelayException
+    if any of the labels do not have objects."""
+    object_repository = ObjectRepository.get_instance()
+    last_step = 0
+    earliest_step = 0
+    for label in return_list(labels):
+        if not label:
+            continue
+        objects = object_repository.get_all_from_labeled_objects(label)
+        if not objects:
+            raise ILEDelayException(
+                'Cannot find any existing objects with label: {label}'
+            )
+        for idl in objects:
+            step = instances.get_earliest_active_step(idl.instance)
+            if step >= 0 and (earliest_step == 0 or step < earliest_step):
+                earliest_step = step
+            step = instances.get_last_move_or_rotate_step(idl.instance)
+            if step > last_step:
+                last_step = step
+    return (last_step + 1) if earliest_step == 1 else 1

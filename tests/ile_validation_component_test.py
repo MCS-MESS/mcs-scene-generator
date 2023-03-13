@@ -235,7 +235,7 @@ def test_valid_path_with_platform_and_ramp():
     component = ValidPathComponent({'check_valid_path': True})
     scene = prior_scene_with_target()
     scene.set_performer_start_position(x=1.9, y=0.5, z=-2.009)
-    scene.set_performer_start_rotation(y=225)
+    scene.set_performer_start_rotation(x=0, y=225)
 
     objs = scene.objects
 
@@ -358,7 +358,7 @@ def test_valid_path_with_platform_and_ramp():
     objs.append(ramp)
 
     component.update_ile_scene(scene)
-    assert component.last_distance == pytest.approx(9.097656235484049)
+    assert component.last_distance == pytest.approx(9.049129686470053)
 
 
 def test_valid_path_with_platform_and_ramp_delayed():
@@ -377,7 +377,7 @@ def test_valid_path_with_platform_and_ramp_delayed():
     scene = prior_scene_with_target()
     # start with invalid performer position
     scene.set_performer_start_position(x=10, y=0.5, z=10)
-    scene.set_performer_start_rotation(y=225)
+    scene.set_performer_start_rotation(x=0, y=225)
 
     objs = scene.objects
 
@@ -506,7 +506,7 @@ def test_valid_path_with_platform_and_ramp_delayed():
     scene.set_performer_start_position(x=1.9, y=0.5, z=-2.009)
 
     scene = component.run_delayed_actions(scene)
-    assert component.last_distance == pytest.approx(9.097656235484049)
+    assert component.last_distance == pytest.approx(9.049129686470053)
 
 
 def test_valid_path_with_lava_and_holes():
