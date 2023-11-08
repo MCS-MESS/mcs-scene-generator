@@ -15,14 +15,14 @@ def test_getters_reuse_immutable_dataset():
 
 
 def validate_datasets(dataset, no_untrained_shape=False):
-    definitions = dataset.definitions()
+    definitions = dataset.definitions_unique_shape_scale()
     assert len(definitions) > 0
     assert isinstance(definitions[0], ObjectDefinition)
     trained_dataset = dataset.filter_on_trained()
-    assert len(trained_dataset.definitions()) > 0
+    assert len(trained_dataset.definitions_unique_shape_scale()) > 0
     if not no_untrained_shape:
         untrained_dataset = dataset.filter_on_untrained('untrainedShape')
-        assert len(untrained_dataset.definitions()) > 0
+        assert len(untrained_dataset.definitions_unique_shape_scale()) > 0
 
 
 @pytest.mark.slow
@@ -76,3 +76,35 @@ def test_choose_distractor_definition():
             assert specific_objects.choose_distractor_definition(
                 [definition.shape]
             )
+
+
+def test_wide_obstacles():
+    dataset = specific_objects.get_obstacle_definition_dataset()
+    trained_dataset = dataset.filter_on_trained()
+    definitions = trained_dataset.definitions_unique_shape_scale()
+    definitions = sorted(definitions, key=lambda x: x.type)
+    options = []
+    for definition in definitions:
+        if definition.dimensions.x >= 1.5:
+            options.append((definition, definition.dimensions.x, False))
+        if definition.dimensions.z >= 1.5:
+            options.append((definition, definition.dimensions.z, True))
+    for option in options:
+        print(f'type={option[0].type} size={option[1]} sideways={option[2]}')
+    assert len(options)
+
+
+def test_wide_occluders():
+    dataset = specific_objects.get_occluder_definition_dataset()
+    trained_dataset = dataset.filter_on_trained()
+    definitions = trained_dataset.definitions_unique_shape_scale()
+    definitions = sorted(definitions, key=lambda x: x.type)
+    options = []
+    for definition in definitions:
+        if definition.dimensions.x >= 1.5:
+            options.append((definition, definition.dimensions.x, False))
+        if definition.dimensions.z >= 1.5:
+            options.append((definition, definition.dimensions.z, True))
+    for option in options:
+        print(f'type={option[0].type} size={option[1]} sideways={option[2]}')
+    assert len(options)

@@ -2,14 +2,27 @@
 # center; a randomly sized soccer ball retrieval target; and a large pushable
 # (and pullable) "tool" object. See the ILE_API for all config options.
 shortcut_lava_target_tool:
+
     # Start next to the tool (50%) or in a random location (50%).
     random_performer_position: [true, false]
+
     # Target positioned on the island (50%) or in a random location (50%).
     random_target_position: [true, false]
-    # Tool begins facing the target (rotation=0) or not.
-    tool_rotation: [0, 15, 30, 45, 60, 75, 90]
-    # Generate either a rectangular or a hooked (L-shaped) tool.
-    tool_type: [rectangular, hooked]
+
+    # Generate either a rectangular, hooked (L-shaped, unequal sides), or
+    # isosceles (L-shaped, equal sides) tool.
+    tool_type: [rectangular, hooked, isosceles]
+
+    # Uncomment and edit this option to set a specific rotation for the tool.
+    # By default, a tool may or may not be rotated.
+    # tool_rotation: 0
+
+    # Uncomment and edit this option to set a starting distance to the tool.
+    # Cannot be used if random_performer_position is also set.
+    # distance_between_performer_and_tool: 1.0
+
+    # Whether to generate guide rails for the tool.
+    guide_rails: False
 
 # Sometimes (25%) make an extra tool that is "too small" to use effectively.
 # Remove this whole block if you do not wish to generate this extra tool.
