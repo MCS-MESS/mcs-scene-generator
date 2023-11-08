@@ -68,9 +68,9 @@ randomly chosen for each scene. Default: no pointing
 VectorFloatConfig dicts): The position of this agent in each scene. If
 configured as a list, a new position will be randomly chosen for each
 scene. Default: random
-- `rotation_y` (int, or [MinMaxInt](#MinMaxInt) dict, or list of ints
-and/or MinMaxInt dicts): The rotation of this agent in each scene. If
-configured as a list, a new rotation will be randomly chosen for each
+- `rotation_y` (float, or [MinMaxFloat](#MinMaxFloat) dict, or list of
+floats and/or MinMaxFloat dicts): The rotation of this agent in each scene.
+If configured as a list, a new rotation will be randomly chosen for each
 scene. Default: random
 - `type` (string, or list of strings) The model ("type") of the agent.
 Please see the list in our [schema doc](
@@ -194,8 +194,11 @@ On default, a blocking wall is on that platform, forcing the performer
 to choose a side to drop off of the platform, but this can be disabled.
 - `has_blocking_wall` (bool): Enables the blocking wall so that the
 performer has to stop and choose a side of the room. Default: True
-- `has_long_blocking_wall` (bool): Enables the long blocking wall used in
-Spatial Reorientation tasks. Overrides `has_blocking_wall`. Default: False
+- `has_double_blocking_wall` (bool): Enables the double blocking wall used
+in Spatial Reorientation tasks. Overrides both `has_blocking_wall` and
+`has_long_blocking_wall`. Default: False
+- `has_long_blocking_wall` (bool): Enables the extra-long blocking wall.
+Overrides `has_blocking_wall`. Default: False
 - `is_short` (bool): Makes the platform short (a Y scale of 0.5 rather
 than 1). Default: False
 - `is_thin` (bool): Makes the platform thin (an X scale of 0.5 rather
@@ -204,6 +207,9 @@ than 1). Default: False
 dict, or list of StructuralPlatformConfig dicts): Configurations to
 generate other platforms that may intersect with the bisecting platform.
 Default: No other platforms
+- `position_z` (float, or list of floats, or [MinMaxFloat](#MinMaxFloat)
+dict, or list of MinMaxFloat dicts): The starting Z position for the
+performer agent. Default: 0.5 away from the back wall
 
 #### DoubleDoorConfig
 
@@ -225,23 +231,28 @@ back of the room where the AI will start on. Default: True
 - `door_material` (string, or list of strings): The material or material
 type for the doors.
 - `occluder_wall_position_z` (float, or list of floats, or
-[MinMaxFloat](#MinMaxFloat) dict: Where the occluder wall will cross the
-z-axis in the room. `performer_distance_from_occluder` will override this
+[MinMaxFloat](#MinMaxFloat) dict, or list of MinMaxFloat dicts):
+Where the occluder wall will cross the
+z-axis in the room. `occluder_distance_from_performer` will override this
 value. Default: 0 (middle of the room)
 - `occluder_distance_from_performer` (float, or list of floats, or
-[MinMaxFloat](#MinMaxFloat) dict: If there is a platform the, the performer
+[MinMaxFloat](#MinMaxFloat) dict, or list of MinMaxFloat dicts):
+If there is a platform the, the performer
 will start on top of the platform and the occluder wall will be placed
 this distance (`occluder_distance_from_performer`) from the performer. Must
 be greater than 1 or null
 Default: 6.5
 - `platform_height` (float, or list of floats, or
-[MinMaxFloat](#MinMaxFloat) dict: The height (y scale) of the platform
+[MinMaxFloat](#MinMaxFloat) dict, or list of MinMaxFloat dicts):
+The height (y scale) of the platform
 Default: 1.5
 - `platform_length` (float, or list of floats, or
-[MinMaxFloat](#MinMaxFloat) dict: The lenth (z scale) of the platform
+[MinMaxFloat](#MinMaxFloat) dict, or list of MinMaxFloat dicts):
+The lenth (z scale) of the platform
 Default: 1
 - `platform_width` (float, or list of floats, or
-[MinMaxFloat](#MinMaxFloat) dict: The width (z scale) of the platform
+[MinMaxFloat](#MinMaxFloat) dict, or list of MinMaxFloat dicts):
+The width (z scale) of the platform
 Default: 1
 - `start_drop_step` (int, or list of ints, or [MinMaxInt](#MinMaxInt) dict,
 or list of MinMaxInt dicts): Step number to start dropping the bisecting
@@ -262,6 +273,10 @@ MinMaxInt dicts): Number of areas to be used with these parameters
 list of MinMaxInt dicts): X position of the area.
 - `position_z` (int, or list of ints, or [MinMaxInt](#MinMaxInt) dict, or
 list of MinMaxInt dicts): Z position of the area.
+- `size` (int, or list of ints, or [MinMaxInt](#MinMaxInt) dict, or
+list of MinMaxInt dicts): Size of a single contiguous area. If `position_x`
+and/or `position_z` are set, the area will include a space matching those
+coordinate(s). Default: 1
 
 #### FloorMaterialConfig
 
@@ -342,16 +357,29 @@ what teleports in the scene after the agent performs its imitation sequence
 to and the performer is kidnapped. Options are:
 1) agent_only: The imitation agent teleports away from the
 containers but in view. Nothing else is teleported.
-2) containers: The containers are teleported but still in view. The
-containers are still aligned with their start rotation. The imitation agent
-is teleported away from the containers but in view.
-3) containers_rotate: The containers are teleported but still in view. The
-containers are rotated 90 degrees to be perpendicular to how they started.
+2) containers: The containers are teleported anr rotated but still in view.
 The imitation agent is teleported away from the containers but in view.
 4) performer: The performer is teleported to a random part of the room
 but looks at the center of the room where the containers still are.
 The imitation agent is teleported away from the containers but in view.
-
+Default: random
+- `relative_container_rotation`: (int, or list of int): Dictates
+what degree of rotation change the containers will rotate relative to
+their clockwise starting rotation. For example, if the they are facing
+270 (starting on the right side) and container_rotation of 45 will make
+the final rotation 315. Examples of what rotations containers cannot
+rotate:
+1) 360 and 180 for both left and right because the containers will
+face identical or opposite from their start.
+2) 90 on right side, 270 on left which will make the containers face
+directly away from the performer.
+Direction containers can rotate for right side: [45, 135, 225, 270, 315]
+Direction containers can rotate for left side: [45, 90, 135, 225, 315]
+Default: random
+- `global_container_rotation`: (int, or list of int): Dictates
+what degree of rotation change the containers will rotate on based on
+the absolute global rotation. Options are: [45, 135, 180, 225, 315].
+Will override `relative_container_rotation`
 Default: random
 
 #### InteractableObjectConfig
@@ -405,8 +433,8 @@ positioning this object relative to another object, rather than using
 `position`. If configuring this as a list, then all listed options will be
 applied to each scene in the listed order, with later options overriding
 earlier options if necessary. Default: not used
-- `rotation` ([VectorIntConfig](#VectorIntConfig) dict, or list of
-VectorIntConfig dicts): The rotation of this object in each scene. For a
+- `rotation` ([VectorFloatConfig](#VectorFloatConfig) dict, or list of
+VectorFloatConfig dicts): The rotation of this object in each scene. For a
 list, a new rotation will be randomly chosen for each scene.
 Default: random
 - `scale` (float, or list of floats, or [MinMaxFloat](#MinMaxFloat) dict,
@@ -444,6 +472,17 @@ Default: Use `separate_lid`
 - `shape` (string, or list of strings): The shape (object type) of this
 object in each scene. For a list, a new shape will be randomly chosen for
 each scene. Default: random
+- `surrounded_by_lava` (bool, or list of bools): Whether or not this
+object will be surrounded by lava. Default: False
+- `surrounding_lava_size`: (int, or list of ints): The width of the
+surrounding lava. Only used if `surrounded_by_lava` is set to True. In
+that case, default is 1, otherwise the value will be None. Note that
+this value will need to fit within room bounds, otherwise may error.
+- `surrounding_safe_zone`: (bool, or list of bools): If set to True
+and `surrounded_by_lava` is True, a buffer area (at least 0.5) will
+be set around the surrounding lava to ensure that it does not touch any
+other sections of lava or room walls/corners, and therefore allowing
+the performer to move around the surrounding lava's perimeter.
 - `rotate_cylinders` (bool): Whether or not to rotate cylindrical shapes
 along their x axis so that they are placed on their round sides (needed
 for collision scenes). This would only apply to these shapes: 'cylinder',
@@ -507,6 +546,12 @@ be one of the following:
     - `adjacent` - The object will be placed near another object. The other
     object must be referenced by the 'relative_object_label' field, and the
     distance away from the relative object must be set by the
+    `adjacent_distance` field.
+    - `adjacent_corner` - The object will be placed near the corner
+    referenced by the 'relative_object_label' field.  The corner labels
+    are 'front_left' (-X, +Z), 'front_right' (+X, +Z),
+    'back_left' (-X, -Z), and 'back_right' (+X, -Z).  The
+    distance away from the corner will be determined by the
     `adjacent_distance` field.
     - `adjacent_performer` - The object will be placed next to the
     performer.  The object can be placed in 'front', 'back', left, or
@@ -576,9 +621,13 @@ be one of the following:
     provided, a wall will be chosen at random.
 - `adjacent_distance` (VectorFloatConfig, or list of VectorFloatConfigs):
 The X/Z distance in global coordinates between this object's position and
-the relative object's position. Only usable with the `adjacent` `keyword`.
-By default, this object will be positioned 0.1 away from the relative
-object in a random, valid direction.
+the relative object's (or corner's) position. Only usable with the
+`adjacent` or `adjacent_corner` keyword. By default, this object will be
+positioned 0.1 away from the relative object (or corner) in a random,
+valid direction.  Note that if using this for a corner with the
+`surrounded_by_lava` property, you'll need to use the same dimensions for
+x/z and that they're divisible by 0.5 to make sure they line up correctly
+with the lava island.
 - `container_label` (string, or list of strings): The label of a container
 object that already exists in your configuration. Only required by some
 keyword locations.
@@ -654,10 +703,23 @@ positioning this object relative to another object, rather than using
 `position`. If configuring this as a list, then all listed options will be
 applied to each scene in the listed order, with later options overriding
 earlier options if necessary. Default: not used
-- `rotation` ([VectorIntConfig](#VectorIntConfig) dict, or list of
-VectorIntConfig dicts): The rotation of these objects in each scene. If
+- `rotation` ([VectorFloatConfig](#VectorFloatConfig) dict, or list of
+VectorFloatConfig dicts): The rotation of these objects in each scene. If
 given a list, a rotation will be randomly chosen for each object and each
 scene. Is overridden by the `keyword_location`. Default: random
+
+#### KnowledgeableAgentPairConfig
+
+Defines all of the configurable options for
+[knowledgeable_agent_pair]
+(#knowledgeable_agent_pair).
+- `position_1` (Vector3): One possible location for an agent to be.
+- `position_2` (Vector3): One possible location for an agent to be.
+- `pointing_step` (int): Starting step of pointing action.
+- `target_labels` (str): Label for the knowledgeable agent to use to find
+the goal.
+- `non_target_labels` (str): Label so the non-knowledgeable agent to use to
+find what it should be pointing to.
 
 #### LavaTargetToolConfig
 
@@ -666,7 +728,8 @@ creates a room with a target object on an island surrounded by lava. There
 will also be a block tool to facilitate acquiring the goal object.
 - `front_lava_width` (int, or list of ints, or [MinMaxInt](#MinMaxInt):
 The number of tiles of lava in front of the island.  Must produce value
-between 2 and 6 for rectangular tools, 1 to 3 for hooked tools.
+between 2 and 6 for rectangular tools, 1 to 3 for hooked and isosceles
+tools.
 Default: Random based on room size and island size
 - `guide_rails` (bool, or list of bools): If True, guide rails will be
 generated to guide the tool in the direction it is oriented.  If a target
@@ -675,12 +738,12 @@ used with `tool_rotation`. Default: False
 - `island_size` (int, or list of ints, or [MinMaxInt](#MinMaxInt) dict,
 or list of MinMaxInt dicts): The width and length of the island inside the
 lava.  Must produce value from 1 to 5 for rectangular tools, 1 to 3
-for hooked tools.
+for hooked and isosceles tools.
 Default: Random based on room size
 - `left_lava_width` (int, or list of ints, or [MinMaxInt](#MinMaxInt):
 The number of tiles of lava left of the island.  Must produce value
-between 2 and 6 for rectangular tools, but will be ignored for hooked
-tools, since the lava should extend to the wall in that case.
+between 2 and 6 for rectangular tools, but will be ignored for hooked and
+isosceles tools, since the lava should extend to the wall in that case.
 Default: Random based on room size and island size
 - `random_performer_position` (bool, or list of bools): If True, the
 performer will be randomly placed in the room. They will not be placed in
@@ -690,33 +753,44 @@ target object will be positioned randomly in the room, rather than being
 positioned on the island surrounded by lava. Default: False
 - `rear_lava_width` (int, or list of ints, or [MinMaxInt](#MinMaxInt):
 The number of tiles of lava behind of the island.  Must produce value
-between 2 and 6 for rectangular tools, 1 to 3 for hooked tools.
+between 2 and 6 for rectangular tools, 1 to 3 for hooked and isosceles
+tools.
 Default: Random based on room size, island size, and other lava widths.
 - `right_lava_width` (int, or list of ints, or [MinMaxInt](#MinMaxInt):
 The number of tiles right of the island.  Must produce value
-between 2 and 6 for rectangular tools, but will be ignored for hooked
-tools, since the lava should extend to the wall in that case.
+between 2 and 6 for rectangular tools, but will be ignored for hooked and
+isosceles tools, since the lava should extend to the wall in that case.
 Default: Random based on room size and island size
 - `random_performer_position` (bool, or list of bools): If True, the
 performer will be randomly placed in the room. They will not be placed in
 the lava or the island. If the `tool_type` is inaccessible the performer
 will randomly start on the side of the room where the target is where
 they cannot access the tool. Default: False
-- `tool_rotation` (int, or list of ints, or [MinMaxInt](#MinMaxInt):
+- `tool_rotation` (float, or list of floats, or
+[MinMaxFloat](#MinMaxFloat) dict, or list of MinMaxFloat dicts):
 Angle that tool should be rotated out of alignment with target.
-This option cannot be used with `guide_rails`.  Default: 0
-- `distance_between_performer_and_tool` (float, or list of floats,
-or [MinMaxFloat](#MinMaxFloat): The distance away the performer is from the
-tool at start. The performer will be at random point around a rectangular
-perimeter surrounding the tool. This option cannot be used with
-`random_performer_position`.  Default: None
-- `tool_offset_backward_from_lava` (
-[RandomizableFloat](#RandomizableFloat)): The vertical offset of tool
-either away from the lava pool. Must be greater than or equal to 0
+This option cannot be used with `guide_rails`, or the `broken` and
+`inaccessible` `tool_type` choices. For `hooked` and `isosceles` tools,
+we advice against setting a rotation higher than 315.
+Defaults to one of the following: 0, 45, 90, 135, 180, 225, 270, 315
+- `distance_between_performer_and_tool` (float, or
+[MinMaxFloat](#MinMaxFloat) dict, or list of floats and/or MinMaxFloat
+dicts): Distance between the performer agent and the tool. If set to `0`,
+will try all distances between `0.5` and the bounds of the room. If set to
+a MinMaxFloat with a `max` of `0` or greater than the room bounds, will
+try all distances between the configured `min` and the bounds of the room.
+If set to a MinMaxFloat with a `min` of `0`, will try all distances
+between the configured `max` and `0.5`. This cannot be used in combination
+with `random_performer_position`. Default: None
+- `tool_offset_backward_from_lava` (float, or [MinMaxFloat](#MinMaxFloat)
+dict, or list of floats and/or MinMaxFloat dicts): The vertical offset of
+the tool: either further into the lava, for `hooked` and `isosceles` tools,
+or further from the lava, for other tools. Must be 0 or greater. Cannot be
+used with `hooked` and `isosceles` tools when `tool_rotation` is non-zero.
 Default: 0
-- `tool_horizontal_offset` ([RandomizableFloat](#RandomizableFloat)):
-The horizontal offset of tool either
-left or right from being aligned with the target. If `tool_type` is
+- `tool_horizontal_offset` (float, or [MinMaxFloat](#MinMaxFloat) dict, or
+list of floats and/or MinMaxFloat dicts): The horizontal offset of tool
+either left or right from being aligned with the target. If `tool_type` is
 inaccessible this has alternate behavior. See
 `inaccessible_tool_blocking_wall_horizontal_offset` for description.
 Default: 0
@@ -737,11 +811,13 @@ closest edge to the wall will be a distance of 3 to the left of the wall
 since the wall has a negative offset to the left.
 Default: None
 - `tool_type` (str, or list of strs): The type of tool to generate, either
-`rectangular`, `hooked`, `small`, `broken`, or `inaccessible`.
-If `hooked` tools are chosen and lava widths are not specified,
-the room will default to having an island size of 1, with lava extending
-all the way to the walls in both the left and right directions.
-The front and rear lava in the default hooked tool case will each
+`rectangular`, `hooked`, `isosceles`, `small`, `broken`, or `inaccessible`.
+Both `hooked` and isosceles` tools are L-shaped; `hooked` tools always have
+width 3, and `isosceles` tools always have width equal to their length.
+If `hooked` and `isosceles` tools are chosen and lava widths are not
+specified, the room will default to having an island size of 1, with lava
+extending all the way to the walls in both the left and right directions.
+The front and rear lava in the default hooked/isosceles tool case will each
 have a size of 1.
 If `small` is chosen the tool will always be a length of 1.
 If `broken` is chosen the tool will be the correct length but have
@@ -781,14 +857,44 @@ Defines details of performer_starts_near which places the performer near an
 object of a given label at a specified distance away.
 - `label` (string or list of strings):
 Label of the object the performer will be placed near. Required.
-- `distance` (float or list of floats):
-Distance the performer will be from the object.  Default: 0.1
+- `distance` (float, or [MinMaxFloat](#MinMaxFloat) dict, or list of
+floats and/or MinMaxFloat dicts): Distance between the performer agent and
+the object. If set to `0`, will try all distances between `0.5` and the
+bounds of the room. If set to a MinMaxFloat with a `max` of `0` or greater
+than the room bounds, will try all distances between the configured `min`
+and the bounds of the room. If set to a MinMaxFloat with a `min` of `0`,
+will try all distances between the configured `max` and `0.5`.
+Default: 0.5
 
 Example:
 ```
 label: container
-distance: 0.1
+distance: 0.5
 ```
+
+#### PlacersWithDecoyConfig
+
+Defines the configureable options for [placers_with_decoy]
+(#placers_with_decoy)
+- `activation_step` List[int]: A list of steps that the placer/decoy can
+be activated.
+- `object_end_position_x` List[float]: A list of x positions that the
+placer/decoy can move to.
+- `decoy_y_modifier` float: The distance that the decoy should stop short
+so it doesn't go all the way to the ground. Should be the height of the
+target object.
+- `placed_object_position` RandomizableVectorFloat3d: Starting position of
+the placer/decoy.
+- `labels` RandomizableString: The labels that should be applied the to
+placer/decoy.
+- `move_object_y` RandomizableFloat: A modifier to the release height of
+the target object.
+- `move_object_z` RandomizableFloat: A modifier to the release depth of
+the target object.
+- `placed_object_labels` RandomizableString: Labels to be applied to the
+target object.
+- `placed_object_rotation` RandomizableFloat: Rotation to be applied to
+the target object during release.
 
 #### RandomStructuralObjectConfig
 
@@ -819,6 +925,8 @@ options for this group.  The options include the following:
     - `throwers`: A random thrower that throws a random object between step
         0 and step 10.  Throw force is 500 to 1000 times the mass of the
         thrown object.
+    - `tube_occluders`: A random tube occluder.
+    - `turntables`: A random turntable.
     - `walls`: A random interior room wall.
 Default: All types
 - `num` (int, or list of ints, or [MinMaxInt](#MinMaxInt)): The number of
@@ -892,15 +1000,17 @@ will guess and go towards one of the buckets behind itself.
 
 Contains data to describe the performer's sidesteps.
 
-- `begin` ([RandomizableInt](#RandomizableInt)):
+- `begin` (int, or [MinMaxInt](#MinMaxInt) dict, or list of ints and/or
+MinMaxInt dicts):
 The step where the performer agent starts being frozen
 and can only use the `"Pass"` action. For example, if 1, the performer
 agent must pass immediately at the start of the scene.  This is an
 inclusive limit.
-- `object_label` ([RandomizableString](#RandomizableString)):
+- `object_label` (string, or list of strings):
 The label of the object the performer will sidestep around. The performer
 must be 3 distance away from the object's center for sidesteps to work.
-- `degrees` ([RandomizableInt](#RandomizableInt)):
+- `degrees` (int, or [MinMaxInt](#MinMaxInt) dict, or list of ints and/or
+MinMaxInt dicts):
 The positive or negative degrees the performer will sidestep around the
 object. Positive forces the performer to sidestep right while negative
 sidesteps left. The degree value must always be in 90 or -90 degree
@@ -991,6 +1101,10 @@ the ceiling where the dropper should be placed.
 - `position_z` (float, or list of floats, or [MinMaxFloat](#MinMaxFloat)
 dict, or list of MinMaxFloat dicts): Position in the z direction of the of
 the ceiling where the dropper should be placed.
+- `projectile_dimensions` (float, or list of floats, or
+[MinMaxFloat](#MinMaxFloat) dict, or list of MinMaxFloat dicts): Dimensions
+of the projectile. Overrides the `projectile_scale` if configured.
+Default: use `projectile_scale`
 - `projectile_labels` (string, or list of strings): A label for an existing
 object in your ILE configuration that will be used as this device's
 projectile, or new label(s) to associate with a new projectile object.
@@ -1006,6 +1120,9 @@ material or material type.
 the projectile. Default is based on the shape.
 - `projectile_shape` (string, or list of strings): The shape or type of
 the projectile.
+- `no_projectile` (bool, or list of bools): If `true`, this device will
+not be holding a projectile; other "projectile" options will be ignored.
+Default: `false`
 
 #### StructuralLOccluderConfig
 
@@ -1091,11 +1208,21 @@ as the number of steps to wait. Default: false
 - `reverse_direction` (bool, or list of bools): Reverse the rotation
 direction of a sideways wall by rotating the wall 180 degrees. Only used if
 `origin` is set to a wall and not `top`. Default: [true, false]
-- `rotation_y` (int, or list of ints, or [MinMaxInt](#MinMaxInt) dict,
-or list of MinMaxInt dicts): Y rotation of a non-sideways occluder wall;
-only used if any `origin` is set to `top`.  Default is 0 to 359.
+- `rotation_y` (float, or list of floats, or [MinMaxInt](#MinMaxFloat)
+dict, or list of MinMaxFloat dicts): Y rotation of a non-sideways occluder
+wall; only used if any `origin` is set to `top`.  Default is 0 to 359.
 - `wall_material` (string, or list of strings): Material of the occluder
 wall (cube)
+
+#### StructuralNotchedOccluderConfig
+
+- `height` (float): The overall height of the occluder.
+- `material`(string): The material the occluder is made of.
+- `position_z` (float): The occulders z position within the room.
+- `down_step` (int): The step the occluder will start to move down.
+- `up_step` (int): The step the occluder will start to return up.
+- `notch_height` (float): The height of the occluder notch.
+- `notch_width` (float): The width of the occluder notch.
 
 #### StructuralObjectMovementConfig
 
@@ -1160,21 +1287,22 @@ MinMaxInt dicts): Number of areas to be used with these parameters
 - `activate_after`: (str, or list of strs): Overrides the `activation_step`
 (overriding the manual config) based on the movement of other object(s) in
 the scene. Should be set to one or more labels for mechanical objects that
-may move or rotate, like placers or turntables. The `activation_step` of
-this object will be set to the step immediately after ALL of the objects
-finish moving and rotating. If multiple labels are configured, all labels
-will be used. Default: Use `activation_step`
+may move or rotate, like placers or turntables, as well as agents. The
+`activation_step` of this object will be set to the step immediately after
+ALL of the objects and agents finish moving and rotating. If multiple
+labels are configured, all labels will be used. Default: Use
+`activation_step`
 - `activate_on_start_or_after`: (str, or list of strs, or bool): Overrides
 the `activation_step` (overriding the manual config) based on the movement
 of other object(s) in the scene. Should be set to one or more labels for
-mechanical objects that can move or rotate, like placers or turntables. If
-ANY of the objects begin moving or rotating immediately at the start of the
-scene (step 1), then the `activation_step` of this object will be set to
-the step immediately after ALL of the objects finish moving and rotating;
-otherwise, if ALL of the objects begin moving and rotating after step 1,
-then the `activation_step` of this object will be set to 1. If multiple
-labels are configured, all labels will be used. Default: Use
-`activation_step`
+mechanical objects that can move or rotate, like placers or turntables, as
+well as agents. If ANY of the objects or agents begin moving or rotating
+immediately at the start of the scene (step 1), then the `activation_step`
+of this object will be set to the step immediately after ALL of the objects
+and agents finish moving and rotating; otherwise, if ALL of the objects and
+agents begin moving and rotating after step 1, then the `activation_step`
+of this object will be set to 1. If multiple labels are configured, all
+labels will be used. Default: Use `activation_step`
 - `activation_step`: (int, or list of ints, or [MinMaxInt](#MinMaxInt)
 dict, or list of MinMaxInt dicts): Step on which the placer should begin
 its downward movement. Default: between 0 and 10
@@ -1183,8 +1311,11 @@ dict, or list of MinMaxInt dicts): Step on which the placer should release
 its held object. This number must be a step after the end of the placer's
 downward movement. Default: At the end of the placer's downward movement
 - `empty_placer` (bool, or list of bools): If True, the placer will not
-hold/drop an object. Cannot be used in combination with any of the
-placed_object_* config options. Default: False
+hold, drop, or move an object. Use 'placed_object_position' to set the
+placer's starting X/Z position if needed. Cannot be used in combination
+with any of the following config options: 'placed_object_labels',
+'placed_object_material', 'placed_object_rotation', 'placed_object_scale',
+'placed_object_shape'. Default: False
 - `end_height`: (float, or list of floats, or [MinMaxFloat](#MinMaxFloat)
 dict): Height at which the placer should release its held object.
 Alternatively, one can use the `end_height_relative_object_label`.
@@ -1201,19 +1332,26 @@ automatically generate a new object and assign it all the
 `placed_object_labels`. Default: False
 - `labels` (string, or list of strings): A label or labels to be assigned
 to this object. Always automatically assigned "placers"
-- `move_object` (bool): If True, a placer will be
-generated to pickup an object. Default: False
+- `move_object` (bool): If True, the placer will move the object on the X
+axis from its `placed_object_position` to `move_object_end_position`.
+Default: False
 - `move_object_end_position`: ([VectorFloatConfig](#VectorFloatConfig)
-dict, or list of VectorFloatConfig dicts): The placed object's end
-position after being moved by a placer
-- `move_object_y`: The placer will raise the object by this value
-    during the move object event.
-    Default: 0
-- `move_object_z`: The placer will move the object along the z-axis,
-    slide along the x-axis and move back.
-    Default: 1.5
-- `pickup_object` (bool): If True, a placer will be
-generated to pickup an object. Default: False
+dict, or list of VectorFloatConfig dicts): If `move_object` is True,
+the placer will move the object from its `placed_object_position` to the
+X position in `move_object_end_position`. Note that the Y and Z positions
+in `move_object_end_position` are ignored; the Y and Z positions set in
+`placed_object_position` are kept the same. (This option remains a Vector
+for backwards compatibility.)
+- `move_object_y`: If `move_object` is True, the placer will raise the
+object by this amount before moving it on the X/Z axes, and lower it by
+the same amount afterward. Default: `0`
+- `move_object_z`: If `move_object` is True, the placer will move the
+object by this amount in the -Z direction after raising it on the Y axis
+but before moving it on the X axis, and move it by the same amount again
+in the +Z direction after moving it on the X axis and before lowering it
+on the Y axis. Default: `1.5`
+- `pickup_object` (bool): If True, the placer will pickup the object.
+Default: False
 - `placed_object_above` (string, or list of strings): A label for an
 existing object in your configuration whose X/Z position will be used for
 this placer's (and the placed object's) starting position. Overrides
@@ -1233,8 +1371,8 @@ new material will be randomly chosen for each scene. Default: random
 - `placed_object_position`: ([VectorFloatConfig](#VectorFloatConfig) dict,
 or list of VectorFloatConfig dicts): The placed object's position in the
 scene
-- `placed_object_rotation`: (int, or list of ints, or
-[MinMaxInt](#MinMaxInt) dict, or list of MinMaxInt dicts): The placed
+- `placed_object_rotation`: (float, or list of floats, or
+[MinMaxFloat](#MinMaxFloat) dict, or list of MinMaxFloat dicts): The placed
 object's rotation on the y axis.
 - `placed_object_scale`: (float, or list of floats, or
 [MinMaxFloat](#MinMaxFloat) dict, or list of MinMaxFloat dicts): Placed
@@ -1409,6 +1547,10 @@ overriding earlier options if necessary. Default: not used
 - `position_wall` (float, or list of floats, or
 [MinMaxFloat](#MinMaxFloat) dict, or list of MinMaxFloat dicts): The
 position along the wall that the thrower will be placed.
+- `projectile_dimensions` (float, or list of floats, or
+[MinMaxFloat](#MinMaxFloat) dict, or list of MinMaxFloat dicts): Dimensions
+of the projectile. Overrides the `projectile_scale` if configured.
+Default: use `projectile_scale`
 - `projectile_labels` (string, or list of strings): A label for an existing
 object in your ILE configuration that will be used as this device's
 projectile, or new label(s) to associate with a new projectile object.
@@ -1454,6 +1596,51 @@ may cause unexpected behavior, so we recommend using values of 5 or more in
 your custom config files.
 - `wall` (string, or list of strings): Which wall the thrower should be
 placed on.  Options are: left, right, front, back.
+- `no_projectile` (bool, or list of bools): If `true`, this device will
+not be holding a projectile; other "projectile" options will be ignored.
+Default: `false`
+
+#### StructuralTubeOccluderConfig
+
+Defines details of a structural tube occluder (or "tube-cluder").
+
+- `num` (int, or list of ints, or [MinMaxInt](#MinMaxInt) dict, or list of
+MinMaxInt dicts): Number of structures to generate with these options.
+- `labels` (string, or list of strings): A label or labels to assign to
+these object(s). Always automatically assigned "tube_occluders"
+- `down_after`: (string, or list of strings): Overrides the `down_step`
+(overriding the manual config) based on the movement of other object(s) in
+the scene. Should be set to one or more labels for mechanical objects that
+may move or rotate, like placers or turntables, as well as agents. The
+`down_step` of this object will be set to the step immediately after ALL of
+the objects and agents finish moving and rotating. If multiple labels are
+configured, all labels will be used. Default: Use `down_step`
+- `down_step` (int, or list of ints, or [MinMaxInt](#MinMaxInt) dict, or
+list of MinMaxInt dicts): The step on which the tube occluder should begin
+to move down from the ceiling to the floor. Note that this should happen
+before `up_step`. Default: between 1 and 10
+- `material` (string, or list of strings): The structure's material or
+material type. Default: random
+- `position_x` (float, or list of floats, or [MinMaxFloat](#MinMaxFloat)
+dict, or list of MinMaxFloat dicts): The structure's X position.
+Default: random
+- `position_z` (float, or list of floats, or [MinMaxFloat](#MinMaxFloat)
+dict, or list of MinMaxFloat dicts): The structure's Z position.
+Default: random
+- `radius` (float, or list of floats, or [MinMaxFloat](#MinMaxFloat)
+dict, or list of MinMaxFloat dicts): The structure's radius. Default:
+between 0.5 and 5
+- `up_after`: (string, or list of strings): Overrides the `up_step`
+(overriding the manual config) based on the movement of other object(s) in
+the scene. Should be set to one or more labels for mechanical objects that
+may move or rotate, like placers or turntables, as well as agents. The
+`up_step` of this object will be set to the step immediately after ALL of
+the objects and agents finish moving and rotating. If multiple labels are
+configured, all labels will be used. Default: Use `up_step`
+- `up_step` (int, or list of ints, or [MinMaxInt](#MinMaxInt) dict, or
+list of MinMaxInt dicts): The step on which the tube occluder should begin
+to move up from the floor to the ceiling. Note that this should happen
+after `down_step`. Default: between 51 and 60
 
 #### StructuralTurntableConfig
 
@@ -1501,6 +1688,19 @@ VectorFloatConfig dicts): The structure's position in the scene
 dict, or list of MinMaxFloat dicts): The structure's rotation in the scene
 - `width` (float, or list of floats, or [MinMaxFloat](#MinMaxFloat) dict,
 or list of MinMaxFloat dicts): The width of the wall.
+Default: Between 5% and 50% of the room's maximum dimensions.
+- `thickness` (float, or list of floats, or [MinMaxFloat](#MinMaxFloat)
+dict, or list of MinMaxFloat dicts): The thickness of the wall.
+Default: 0.1
+- `height` (float, or list of floats, or [MinMaxFloat](#MinMaxFloat)
+dict, or list of MinMaxFloat dicts): The height of the wall.
+Default: The room's height.
+- `same_material_as_room` (bool, or list of bools): Whether to use the same
+material as the room's walls. If true, will ignore any `material`
+configured on this wall. Default: false
+- `ignore_bounds` (bool, or list of bools): Whether to ignore the bounds of
+all other objects that have already been generated at the moment this wall
+is being generated. Default: false
 
 #### TeleportConfig
 
@@ -1544,28 +1744,56 @@ without stepping in lava. Possible values: 'no_tool', 'too_short'.
 Defines details of a tool object.
 
 - `num` (int, or list of ints, or [MinMaxInt](#MinMaxInt) dict, or list of
-MinMaxInt dicts): Number of structures to be created with these parameters
-- `guide_rails` (bool, or list of bools): If True, guide rails will be
-generated to guide the tool in the direction it is oriented.  If a target
-exists, the guide rails will extend to the target.  Default: random
+MinMaxInt dicts): Number of tools to generate with these parameters
+- `align_distance` (float, or [MinMaxFloat](#MinMaxFloat) dict, or list of
+floats and/or MinMaxFloat dicts): The distance separating the edges of two
+objects. Only used if `align_with` is also set. Default: between `1` and
+`2`
+- `align_with` (string, or list of strings): The label of an object (that
+already exists in your configuration) with which this tool should be
+aligned (this tool will be positioned behind the object, so you can push
+this tool forward into the object). Overrides any configured `position`
+and `rotation_y`. Use `align_distance` to set the distance separating the
+edges of the two objects. Default: Use `position`
 - `labels` (string, or list of strings): A label or labels to be assigned
-to this object. Always automatically assigned "platforms"
-- `position` ([VectorFloatConfig](#VectorFloatConfig) dict, or list of
-VectorFloatConfig dicts): The structure's position in the scene
-- `rotation_y` (float, or list of floats, or [MinMaxFloat](#MinMaxFloat)
-dict, or list of MinMaxFloat dicts): The structure's rotation in the scene
-- `shape` (string, or list of strings): The shape (object type) of this
-object in each scene. For a list, a new shape will be randomly chosen for
-each scene. Must be a valid [tool shape](#Lists). If set, `length` and
-`width` are ignored.  Default: random
+to this object. Always automatically assigned "tools"
 - `length` (int, or list of ints, or [MinMaxInt](#MinMaxInt) dict, or list
 of MinMaxInt dicts): The length of the tool.  Tools only have specific
 sizes and the values much match exactly.  Valid lengths are integers
-4 to 9. If shape is set, this value is ignored. Default: Use shape
+4 to 9. If shape is set, this value is ignored. Default: random
+- `position` ([VectorFloatConfig](#VectorFloatConfig) dict, or list of
+VectorFloatConfig dicts): The tool's position in the scene
+- `rotation_y` (float, or list of floats, or [MinMaxFloat](#MinMaxFloat)
+dict, or list of MinMaxFloat dicts): The tool's rotation in the scene
+- `shape` (string, or list of strings): The shape (object type) of this
+object in each scene. For a list, a new shape will be randomly chosen for
+each scene. Must be a valid [tool shape](#Lists). If set, ignores `length`,
+`width`, and `tool_type`.  Default: Use `tool_type`
+- `tool_type` (str, or list of strs): The type of tool to generate, either
+`rectangular`, `hooked`, `isosceles`, or `small`.
+Both `hooked` and isosceles` tools are L-shaped; `hooked` tools always have
+width 3, and `isosceles` tools always have width equal to their length.
+Default: `rectangular` or `hooked`
 - `width` (float, or list of floats, or [MinMaxFloat](#MinMaxFloat) dict,
 or list of MinMaxFloat dicts):  The width of the tool.  Tools only have
 specific sizes and the values much match exactly.  Valid widths are
-0.5, 0.75, 1.0. If shape is set, this value is ignored. Default: Use shape
+0.5, 0.75, 1.0. If shape is set, this value is ignored. Default: random
+- `material` (string, or list of strings): The material (color/texture) or
+material category to use on this tool in each scene. For lists, a new
+material will be randomly chosen for each scene.
+Default: TOOL_MATERIALS
+- `surrounded_by_lava` (bool, or list of bools): Whether or not this
+tool will be surrounded by lava. If True, width of lava will be 1.
+Default: False
+- `surrounding_lava_size`: (int, or list of ints): The width of the
+surrounding lava. Only used if `surrounded_by_lava` is set to True. In
+that case, default is 1, otherwise the value will be None. Note that
+this value will need to fit within room bounds, otherwise may error.
+- `surrounding_safe_zone`: (bool, or list of bools): If set to True
+and `surrounded_by_lava` is True, a buffer area (at least 0.5) will
+be set around the surrounding lava to ensure that it does not touch any
+other sections of lava or room walls/corners, and therefore allowing
+the performer to move around the surrounding lava's perimeter.
 
 #### TripleDoorConfig
 
@@ -1608,6 +1836,10 @@ will result in a forced choice by the performer.  Default: True
 or list of MinMaxInt dicts): Step number to start dropping the bisecting
 wall with doors.  If None or less than 1, the wall will start in position.
 Default: None
+- `wall_height` (float, or list of floats, or
+[MinMaxFloat](#MinMaxFloat) dict, or list of MinMaxFloat dicts): The
+height for the wall. The height for the center door will be -2 to
+account for being on top of the platform.
 - `wall_material` (string, or list of strings): The material or material
 type for the wall.
 
@@ -1714,7 +1946,8 @@ ceiling_material: "Custom/Materials/GreyDrywallMCS"
 
 #### check_valid_path
 
-(bool): If true, checks for a valid path between the performer agent's
+(bool or str):
+If true, checks for a valid path between the performer agent's
 starting position and the target's position and retries generating the
 current scene if one cannot be found. Considers all objects and structures
 that would block the performer when their position is y = 0 or are light
@@ -1722,8 +1955,11 @@ enough to be pushed. The check considers all holes and areas of lava in the
 scene. It also considers moving up and/or down ramps that are attached to
 platforms (via the `attached_ramps` option in `structural_platforms`), as
 well as across those platforms. Pathfinding is otherwise only done in two
-dimensions. This check is skipped if false. Please note that this feature
-is not currently supported for scenes containing multiple targets.
+dimensions. This check is skipped if false.
+
+Can also be set as a string corresponding to the label of one or more
+objects that already exist in the scene.
+
 Default: False
 
 Simple Example:
@@ -2089,6 +2325,40 @@ keyword_objects:
 
 Note: Creating too many random objects can increase the chance of failure.
 
+#### knowledgeable_agent_pair
+
+(bool, KnowledgeableAgentPairConfig): Config to create a pair of agents.
+One agent will be knowledgeable (will know where the goal is), the other
+won't know and will point into space.
+
+Simple Example:
+```
+knowledgeable_agent_pair:
+        position_1:
+            x: 1.0
+            y: 0
+            z: 0
+        position_2:
+            x: -1.0
+            y: 0
+            z: 0
+```
+
+Advanced Example
+Simple Example:
+```
+knowledgeable_agent_pair:
+    position_1:
+        x: 1.0
+        y: 0
+        z: 0
+    position_2:
+        x: -1.0
+        y: 0
+        z: 0
+    pointing_step: 10,
+    target_labels: target
+
 #### last_step
 
 (int, or list of ints): The last possible action step, or list of last
@@ -2342,7 +2612,7 @@ performer_start_position:
 
 #### performer_start_rotation
 
-([VectorIntConfig](#VectorIntConfig) dict, or list of VectorIntConfig
+([VectorFloatConfig](#VectorFloatConfig) dict, or list of VectorFloatConfig
 dicts): The starting rotation of the performer agent, or a list of
 rotations, from which one is chosen at random for each scene. The
 (required) `y` is left/right and (optional) `x` is up/down. Default: random
@@ -2382,7 +2652,7 @@ Advanced Example:
 ```
 performer_starts_near:
     label: container
-    distance: 0.1
+    distance: 0.5
 ```
 
 #### placers
@@ -2425,6 +2695,44 @@ placers:
       placed_object_material: AI2-THOR/Materials/Plastics/BlueRubber
       placed_object_shape: ball
 
+```
+
+#### placers_with_decoy
+
+(bool): Creates one placer to move and the target object and another that
+is a decoy that pretends to move something. The placers have the order
+and location they will move to randomized.
+Default: False
+
+Simple Example:
+```
+placers_with_decoy: False
+```
+
+Advanced Example 1:
+```
+'placers_with_decoy': {
+        'activation_step': [13, 59],
+        'object_end_position_x': [2.0, -2.0],
+        'placed_object_position': VectorFloatConfig(x=1, y=0.501, z=2),
+        'decoy_y_modifier': 0.22
+    }
+```
+
+Advanced Example 2:
+```
+placers_with_decoy:
+    'placers_with_decoy': {
+        'activation_step': [13, 59],
+        'object_end_position_x': [2.0, -2.0],
+        'labels': 'target_placers',
+        'move_object_y': 0,
+        'move_object_z': 0,
+        'placed_object_labels': 'target',
+        'placed_object_position': VectorFloatConfig(x=1, y=0.501, z=2),
+        'placed_object_rotation': 0.0,
+        'decoy_y_modifier': 0.22
+    }
 ```
 
 #### random_structural_objects
@@ -2476,7 +2784,6 @@ random_structural_objects:
       - platforms
       - ramps
       - throwers
-      - tools
       - turntables
       - walls
     num:
@@ -2714,7 +3021,7 @@ but the same restrictions of width min: 5 and max: 9 apply for left +
 island_size + right as well. By default, the target is a soccer ball
 with scale between 1 and 3.
 
-For hooked tools, different min/max rules apply. See
+For hooked and isosceles tools, different min/max rules apply. See
 LavaTargetToolConfig for details.
 
 The tool is a pushable/pullable tool object with a length equal
@@ -3077,6 +3384,34 @@ structural_moving_occluders:
   rotation_y: 90
 ```
 
+#### structural_notched_occluders
+
+([StructuralNotchedOccluderConfig](#StructuralNotchedOccluderConfig), or
+list of [StructuralNotchedOccluderConfig](#StructuralNotchedOccluderConfig)
+dict) --
+Occluders made of 3 cube. Formed with a notch in the middle to leave space
+for a platform to pass under.
+
+Simple Example:
+```
+structural_notched_occluders:
+    num: 1
+```
+
+Advanced Example
+```
+structural_notched_occluders:
+    num: 1
+    labels: [test_label]
+    material: AI2-THOR/Materials/Metals/BrushedAluminum_Blue
+    height: 2
+    position_z: 2
+    down_step: 6
+    up_step: 61
+    notch_width: 2
+    notch_height: 2
+```
+
 #### structural_occluding_walls
 
 ([StructuralOccludingWallConfig](#StructuralOccludingWallConfig) dict,
@@ -3217,6 +3552,39 @@ structural_throwers:
   projectile_material: 'AI2-THOR/Materials/Metals/Brass 1'
   projectile_shape: soccer_ball
   projectile_scale: 0.85
+```
+
+#### structural_tube_occluders
+
+([StructuralTubeOccluderConfig](#StructuralTubeOccluderConfig), or list
+of [StructuralTubeOccluderConfig](#StructuralTubeOccluderConfig) dict) --
+One or more templates containing properties needed to generate tube
+occluders. Default: None
+
+
+Simple Example:
+```
+structural_tube_occluders:
+    - num: 0
+```
+
+Advanced Example:
+```
+structural_tube_occluders:
+    - num:
+        min: 1
+        max: 3
+    - num: 1
+      position:
+        x: [1, 2]
+        y: 0
+        z:
+          min: -3
+          max: 3
+      radius: 4
+      material: WOOD_MATERIALS
+      down_step: 21
+      up_step: 81
 ```
 
 #### structural_turntables
@@ -3385,25 +3753,24 @@ tools:
         min: 1
         max: 3
     - num: 1
-      shape: tool_rect_1_00_x_9_00
-      position:
+        shape: tool_rect_1_00_x_9_00
+        position:
         x: [1,2]
         y: 0
         z:
-          min: -3
-          max: 3
+            min: -3
+            max: 3
     - num: [1, 3]
-      shape:
+        shape:
         - tool_rect_0_50_x_4_00
         - tool_rect_0_75_x_4_00
         - tool_rect_1_00_x_4_00
-      position:
+        position:
         x: [4, 5]
         y: 0
         z:
-          min: -5
-          max: -4
-
+            min: -5
+            max: -4
 
 ```
 

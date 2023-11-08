@@ -79,6 +79,68 @@ python ile.py -c ile_config.yaml -n 10 -p scene
 
 ### Latest Release Notes
 
+#### Release 1.12
+
+Changelog:
+- Addressed various issues with "hooked" and "isosceles" tools:
+  - Added information to the ILE_API about the "isosceles" tools (hooked tools with two equal sides).
+  - Fixed bugs with generating hooked and isosceles tools using the `shortcut_target_lava_tool` config option, causing them to start positioned colliding with the target object (soccer ball).
+  - Fixed `tool_offset_backward_from_lava` so that it works correctly with hooked and isosceles tools.
+  - Updated `ile_configs/tools.yaml` with more comments.
+- Added the `size` property to the `holes` and `lava` config options for generating contiguous holes and/or pools of lava composed of multiple 1x1 areas.
+  - Updated `ile_configs/navigation_2d.yaml` to use the new `size` property.
+  - Added `ile_configs/tool_with_more_lava.yaml` to demonstrate adding extra pools of lava in a scene that has the `shortcut_lava_target_tool` config option enabled.
+- Changed `tool_rotation` (in the `shortcut_lava_target_tool` config option) to default to a random rotation (`[0, 45, 90, 135, 180, 225, 270, 315]`) rather than `0`.
+- Updated the `check_valid_path` config option to alternatively accept a string object label to use rather than the "target" object label (which continues to be the default). Furthermore, `check_valid_path` can now validate paths to multiple objects in the scene if necessary.
+- Updated the `performer_starts_near` global config option and the `distance_between_performer_and_tool` property (in the `shortcut_target_lava_tool` config option) to support varying min/max ranges that will adjust based on the room's dimensions. See the ILE_API for details.
+
+#### Release 1.11
+
+Changelog:
+- Updated `ile_configs/interactive_knowledgeable_agents.yaml` to depict both of the simulation-controlled agents rotating 180 degrees at the start of each scene
+
+#### Release 1.10
+
+Changelog:
+- Added `ile_configs/interactive_knowledgeable_agents.yaml`
+- Added the `knowledgeable_agent_pair` option to generate a pair of knowledgeable and non-knowledgeable agents.
+- Added the `placers_with_decoy` option to generate a pair of placers, one of which being a decoy.
+- Added the `structural_notched_occluders` option to generate notched occluders (like in the Knowledgeable Agents task).
+- Added the `empty_placer` option to configure placers which don't hold, pick up, and/or move anything else.
+- Added the `surrounded_by_lava` and `surrounding_lava_size` options, previously only available for interactable objects, for configuring tools surrounded by lava.
+- Added the `surrounding_safe_zone` option for configuring safe zones around tools and interactable objects which are surrounded by lava.
+- Added the `wall_height` option for configuring triple door occluders.
+- Agents configured to point at an object now correctly rotate to face that object before starting to point.
+- Agents configured to point at an object positioned underneath them now point at a downward angle.
+- Agents configured to point at an object which is moved by a placer now point at that object's new position.
+- Doors may now have knobs on the right side and open to the left.
+
+#### Release 1.9
+
+Changelog:
+- Added ILE example configs for Eval 7 tasks:
+  - `ile_configs/interactive_hidden_set_rotation.yaml`
+  - `ile_configs/interactive_multi_tool_use.yaml`
+- Added "isosceles" tools for tool tasks: similar to "hooked" tools, which have one side of exactly length 3, and one side of variable length, "isosceles" tools have two sides of equal length.
+- Added `adjacent_corner` keyword for `keyword_location` options to position an object in the corner of the room.
+- Added `align_with` option in ToolConfig to position a tool in alignment with another object.
+- Added `labels` option to AgentConfig and KeywordObjectsConfig to set custom labels on those entities.
+- Added `materials` option in ToolConfig to set tool color/texture. By default, this is randomized among all available tool materials (currently: grey, brown, green, or pink).
+- Added `no_projectile` option in StructuralDropperConfig and StructuralThrowerConfig to generate droppers/throwers without projectiles.
+- Added `projectile_dimensions` option in StructuralDropperConfig and StructuralThrowerConfig to generate random projectiles with specific dimensions.
+- Added `surrounded_by_lava` and `surrounding_lava_size` options in InteractableObjectConfig and ToolConfig to automatically surround an object with lava.
+- Added new open-topped container objects (like trash bins and lidless crates) for Spatial Reorientation and other scenes.
+- Updated `ile_configs/interactive_arithmetic.yaml` and `ile_configs/interactive_number_comparison.yaml` to have occluders that come down at the start of the scene. See the comments in these files for more information, including instructions on how to remove them if desired.
+- Updated `ile_configs/interactive_spatial_reference.yaml` to correctly "freeze" the performer agent until everything else in the scene stops moving.
+- Updated `ile_configs/interactive_collision.yaml` and `ile_configs/interactive_trajectory.yaml` to generate rooms of varying depths.
+- Updated `ile_configs/interactive_imitation.yaml` to rotate containers similarly to the eval scenes.
+- Updated `ile_configs/interactive_moving_target_prediction.yaml` to use `shortcut_start_on_platform`.
+- Updated `ile_configs/interactive_spatial_reorientation.yaml` to have the correct starting Z position for the performer agent, as well as the correct black "blocking walls" on top of the platform.
+- Bug fix: Doors should always be different colors from their surrounding walls (including door occluder sections).
+- Bug fix: Lids can now be placed on top of containers after they have been rotated.
+- Bug fix: Rotations are allowed to be floats.
+- Bug fix: Turntable (rotating_cog) material should default to GreyWoodMCS.
+
 #### Release 1.8
 
 Changelog:
@@ -349,7 +411,7 @@ Eval 5 Tasks:
 | Solidity (Interactive) | O3 | [interactive_solidity.yaml](./ile_configs/interactive_solidity.yaml) |
 | Spatial Elimination (Interactive) | P4 | [interactive_spatial_elimination.yaml](./ile_configs/interactive_spatial_elimination.yaml) |
 | Support Relations (Interactive) | O6 | [interactive_support_relations.yaml](./ile_configs/interactive_support_relations.yaml) |
-| Tool Use (Interactive) | O5 | [tools.yaml](./ile_configs/tools.yaml) |
+| Tool Use (Interactive) | O5 | [tools.yaml](./ile_configs/tools.yaml), [tool_with_more_lava.yaml](./ile_configs/tool_with_more_lava.yaml) |
 
 List of example ILE configuration files for generating scenes similar to specific evaluation tasks:
 
@@ -371,6 +433,7 @@ List of example ILE configuration files for generating scenes similar to specifi
 - [ramps.yaml](./ile_configs/ramps.yaml) Generates scenes with ramps leading up to platforms and a soccer ball retrieval target either on top of the platform or on the floor adjacent to the platform.
 - [ramps_with_agent.yaml](./ile_configs/ramps_with_agent.yaml) Generates scenes with ramps leading up to platforms and an agent with a soccer ball retrieval target.
 - [tools.yaml](./ile_configs/tools.yaml) Generates scenes with a large moveable block tool and a soccer ball retrieval target completely surrounded by lava.
+- [tool_with_more_lava.yaml](./ile_configs/tool_with_more_lava.yaml) Generates scenes with a large moveable block tool and a soccer ball retrieval target completely surrounded by lava, along with extra pools of lava that may obstruct your path to the tool.
 
 Eval 6 Tasks:
 
@@ -398,13 +461,25 @@ List of example ILE configuration files for generating scenes similar to specifi
 - [interactive_collision.yaml](./ile_configs/interactive_collision.yaml) Generates scenes similar to the interactive collision eval tasks: start on a platform, with lava bisecting the room; a thrower rolls a green ball that may or may not collide with a soccer ball; a two-door-occluder descends from the ceiling to obstruct your view of the collision/trajectory; you can only open one door and must determine which side of the room contains the soccer ball.
 - [interactive_imitation.yaml](./ile_configs/interactive_imitation.yaml) Generates scenes similar to the interactive imitation eval tasks. See the config file for details.
 - [interactive_number_comparison.yaml](./ile_configs/interactive_number_comparison.yaml) Generates scenes similar to the interactive number comparison eval tasks: start on a platform bisecting the room; one or more soccer ball multi-retrieval targets on one side; fewer soccer balls on the other side.
-- [interactive_set_rotation.yaml](./ile_configs/interactive_set_rotation.yaml) Generates scenes similar to the interactive set rotation eval tasks: start in a room with one or more identical containers positioned on top of a turntable (giant cog); a soccer ball retrieval target is placed inside a container; lids are placed on all containers; the turntable rotates between 90 and 360 degrees.
+- [interactive_set_rotation.yaml](./ile_configs/interactive_set_rotation.yaml) Generates scenes similar to the interactive set rotation eval tasks: start in a room with one or more identical containers positioned on top of a turntable (giant cog); a soccer ball retrieval target is placed inside a container; lids are placed on all containers; the turntable rotates between 90 and 360 degrees (alternatively, the performer agent is forced to move around the turntable between 90 and 360 degrees).
 - [interactive_shell_game.yaml](./ile_configs/interactive_shell_game.yaml) Generates scenes similar to the interactive shell game eval tasks: start in a room with one or more identical containers; a soccer ball retrieval target is placed inside a container; lids are placed on all containers; a placer drags the target's container to a new location.
 - [interactive_spatial_reference.yaml](./ile_configs/interactive_spatial_reference.yaml) Generates scenes similar to the interactive spatial reference eval tasks: start on a platform bisecting the room; identical closed containers on both sides; an agent walks and points at the container hiding the soccer ball retrieval target; a turntable (giant cog) rotates a non-agent object so it "points" at a container, which may be the same container, or the opposite container.
 - [interactive_spatial_reorientation.yaml](./ile_configs/interactive_spatial_reorientation.yaml) Generates scenes similar to the interactive spatial reorientation eval tasks: start on a platform bisecting the room; identical bins on either side of the room; a placer drops a soccer ball retrieval target into one bin; the performer agent is kidnapped and sometimes teleported to the other side of the room; sometimes one room wall is a different color, and/or the room is trapezoidal.
 - [interactive_trajectory.yaml](./ile_configs/interactive_trajectory.yaml) Generates scenes similar to the interactive trajectory eval tasks: start on a platform, with lava bisecting the room; a thrower rolls the soccer ball; a two-door-occluder descends from the ceiling to obstruct your view of the full trajectory; you can only open one door and must determine which side of the room contains the soccer ball.
 - [interactive_tool_choice.yaml](./ile_configs/interactive_tool_choice.yaml) Generates scenes similar to the interactive tool choice eval tasks: start on a platform bisecting the room; soccer balls surrounded by lava on both sides; one side has a useful tool, but the other side does not have a tool, or has a tool that is too small to use.
 - [passive_seeing_leads_to_knowing.yaml](./ile_configs/passive_seeing_leads_to_knowing.yaml) Generates scenes similar to the passive seeing leads to knowing eval tasks. See the config file for details.
+
+Eval 7 Tasks:
+
+| Eval 7 Task | MCS Core Domains | Example Config Files |
+| --- | --- | --- |
+| Hidden Set Rotation (Interactive) | O1, O4, P5 | [interactive_hidden_set_rotation.yaml](./ile_configs/interactive_hidden_set_rotation.yaml) |
+| Knowledgeable Agents (Interactive) | TODO | [interactive_knowledgeable_agents.yaml](./ile_configs/interactive_knowledgeable_agents.yaml) |
+| Multi-Tool-Use (Interactive) | O5 | [interactive_multi_tool_use.yaml](./ile_configs/interactive_multi_tool_use.yaml) |
+
+- [interactive_hidden_set_rotation.yaml](./ile_configs/interactive_hidden_set_rotation.yaml) Generates scenes similar to the interactive hidden set rotation eval tasks: start in a room with one or more identical containers positioned on top of a turntable (giant cog); a soccer ball retrieval target is placed inside a container; lids are placed on all containers; a giant "tube occluder" occludes the turntable and containers while the turntable rotates between 90 and 360 degrees (alternatively, the performer agent is forced to move around the turntable between 90 and 360 degrees).
+- [interactive_knowledgeable_agents.yaml](./ile_configs/interactive_knowledgeable_agents.yaml) Generates scenes similar to the interactive knowledgeable agents eval tasks: start in a room with platforms, two containers, two agents, and a soccer ball retrieval target; one agent is looking at the containers (knowledgeable), and the other is not (non-knowledgeable); an occluder comes down, and then two placers come down, moving the soccer ball into one of the two containers; the knowledgeable agent points at the container holding the soccer ball, and the non-knowledgeable agents points at a random container.
+- [interactive_multi_tool_use.yaml](./ile_configs/interactive_multi_tool_use.yaml) Generates scenes similar to the interactive multi tool use eval tasks: a soccer ball retrieval target starts in a corner of the room and surrounded by lava; a hooked tool starts in the middle of the room and surrounded by lava; a rectangular tool starts somewhere in the room; you must first use the rectangular tool to push the hooked tool out from the lava, then use the hooked tool to pull the soccer ball out from the lava.
 
 ## Scene Validation
 

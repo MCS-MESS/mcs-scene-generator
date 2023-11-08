@@ -1,10 +1,13 @@
+import random
 from os import getuid
 
-from machine_common_sense.config_manager import Vector3d
+from machine_common_sense.config_manager import Goal, Vector3d
 
 from generator import ObjectBounds, Scene
 from generator.base_objects import create_soccer_ball
+from generator.geometry import calculate_rotations
 from generator.instances import instantiate_object
+from ideal_learning_env.agent_component import SpecificAgentComponent
 from ideal_learning_env.defs import TARGET_LABEL
 from ideal_learning_env.interactable_objects_component import (
     SpecificInteractableObjectsComponent
@@ -21,7 +24,7 @@ from ideal_learning_env.structural_objects_component import (
 def prior_scene(last_step: int = None):
     scene = Scene()
     if last_step:
-        scene.goal['last_step'] = last_step
+        scene.goal.last_step = last_step
     return scene
 
 
@@ -52,8 +55,52 @@ def prior_passive_scene(last_step: int = None):
     scene.set_performer_start_rotation(0, 0)
     scene.set_room_dimensions(20, 10, 20)
     if last_step:
-        scene.goal['last_step'] = last_step
+        scene.goal.last_step = last_step
     return scene
+
+
+def check_rotation(agent, object, index=0, starting_rotation=None):
+    a_steps, a_step_size, a_shift = 0, 0, 0
+    object_position = object['shows'][0]['position']
+    if ('rotates' in agent) and len(agent['rotates']) > index:
+        a_steps = agent['rotates'][index]['stepEnd'] - \
+            agent['rotates'][index]['stepBegin'] + 1
+        a_step_size = agent['rotates'][index]['vector']['y']
+        a_shift = a_step_size * a_steps
+
+        if ('moveToPosition' in object['debug']):
+            if (int(object['debug']['moveToPositionBy']) <=
+                    agent['rotates'][index]['stepBegin']):
+                object_position = object['debug']['moveToPosition']
+
+    else:
+        a_shift = 0
+        a_step_size = 0
+        a_steps = 0
+
+    _, target_rotation = calculate_rotations(
+        Vector3d(**agent['shows'][0]['position']),
+        Vector3d(**object_position),
+        True
+    )
+
+    if starting_rotation is None:
+        curr_rotation = round(agent['shows'][0]['rotation']['y'], 0)
+    else:
+        curr_rotation = starting_rotation
+    target_rotation = round(target_rotation, 0)
+    a_shift = round(a_shift, 0)
+
+    if (a_shift > 0):
+        # Clockwise rotation
+        return (curr_rotation + a_shift % 360) == (target_rotation)
+    elif (a_shift < 0):
+        # Counter-Clockwise rotation
+        # Negative angles make this complicated.
+        if (abs(a_shift) < abs(curr_rotation)):
+            return (curr_rotation + a_shift) == target_rotation
+        else:
+            return ((curr_rotation + a_shift + 360) % 360 == target_rotation)
 
 
 def prior_scene_with_target(
@@ -97,15 +144,15 @@ def prior_scene_with_target(
         'materials': []}
 
     scene.objects = [target_object]
-    goal = {
-        "metadata": {
+    goal = Goal(
+        metadata={
             "target": {
                 "id": "743a91ad-fa2a-42a6-bf6b-2ac737ab7f8f"
             }
         },
-        "last_step": 1000,
-        "category": "retrieval"
-    }
+        last_step=1000,
+        category="retrieval"
+    )
     scene.goal = goal
     ObjectRepository.get_instance().clear()
     if add_to_repo:
@@ -128,15 +175,15 @@ def prior_scene_with_targets():
         {'position': {'x': 3, 'y': 0.11, 'z': 4}}
     )
     scene.objects = [target_1, target_2]
-    scene.goal = {
-        'category': 'multi retrieval',
-        'metadata': {
+    scene.goal = Goal(
+        category='multi retrieval',
+        metadata={
             'targets': [
                 {'id': target_1['id']},
                 {'id': target_2['id']}
             ]
         }
-    }
+    )
     return scene
 
 
@@ -199,8 +246,10 @@ def create_test_obj_scene(
         perf_start_x=0, perf_start_z=3,
         object_start_x=0, object_start_z=0):
     """This creates a scene with a small object in the room.
-    This is mostly useful for `sidesteps` testing which requires
-    an object already being in the scene for the performer to sidestep.
+    The object shapes here are not irregular in shape (ex. hooked_tool)
+    to keep things simple. This is mostly useful for `sidesteps`
+    testing which requires an object already being in the scene for
+    the performer to sidestep.
     """
     scene = prior_scene_custom_start(
         start_x=perf_start_x, start_z=perf_start_z)
@@ -209,6 +258,7 @@ def create_test_obj_scene(
             "num": 1,
             "labels": "object",
             "scale": 0.1,
+            "shape": ["block_blue_letter_s", "apple_1", "truck_3", "chest_6"],
             "position": {
                 "x": object_start_x,
                 "z": object_start_z
@@ -249,4 +299,109 @@ def create_placers_turntables_scene(
     })
     ObjectRepository.get_instance().clear()
     scene = structural_component.update_ile_scene(scene)
+    return scene
+
+
+def create_agent_scene(number_of_agents=1):
+    """This creates a scene with an agent with random actions useful for
+    `freeze_while_moving` testing.
+    """
+    scene = prior_scene_custom(10, 10, 0, 4)
+    step_begin_options = list(range(1, 9999))
+    agent_component = SpecificAgentComponent({
+        'specific_agents': {
+            'num': number_of_agents,
+            'pointing': {
+                'step_begin': step_begin_options,
+                'walk_distance': 0.6
+            }
+        }
+    })
+    ObjectRepository.get_instance().clear()
+    scene = agent_component.update_ile_scene(scene)
+    return scene
+
+
+def create_random_agent_placer_turntable_scene():
+    """This creates a scene with agent, placers, and turntables for
+    `freeze_while_moving` testing with random setup.
+    """
+    number_of_agents = random.randint(1, 5)
+    number_of_placers = random.randint(1, 5)
+    number_of_turntables = random.randint(1, 5)
+    structural_step_begin_options = list(range(1, 1000))
+    structural_step_end_options = list(range(1000, 2000))
+    agent_step_begin_options = list(range(1, 2000))
+
+    scene = prior_scene_custom(100, 100, 0, 4)
+
+    agent_component = SpecificAgentComponent({
+        'specific_agents': {
+            'num': number_of_agents,
+            'pointing': {
+                'step_begin': agent_step_begin_options,
+                'walk_distance': 0.6
+            }
+        }
+    })
+    structural_component = SpecificStructuralObjectsComponent({
+        'structural_turntables': [{
+            'num': number_of_turntables,
+            'rotation_y': 0,
+            'turntable_radius': 2,
+            'turntable_movement': {
+                'step_begin': structural_step_begin_options,
+                'step_end': structural_step_end_options,
+                'rotation_y': 5,
+            }
+        }],
+        'placers': [{
+            'num': number_of_placers,
+            'activation_step': structural_step_begin_options,
+            "deactivation_step": structural_step_end_options,
+            'end_height': 0
+        }]
+    })
+    ObjectRepository.get_instance().clear()
+    scene = structural_component.update_ile_scene(scene)
+    scene = agent_component.update_ile_scene(scene)
+    return scene
+
+
+def create_specific_agent_placer_turntable_scene(
+        agent_start, placer_start, turntable_start):
+    """This creates a scene with agent, placers, and turntables for
+    `freeze_while_moving` testing with specific setup.
+    """
+    scene = prior_scene_custom(20, 20, 0, 4)
+    agent_component = SpecificAgentComponent({
+        'specific_agents': {
+            'num': 1,
+            'pointing': {
+                'step_begin': agent_start,
+                'walk_distance': 0.6
+            }
+        }
+    })
+    structural_component = SpecificStructuralObjectsComponent({
+        'structural_turntables': [{
+            'num': 1,
+            'rotation_y': 0,
+            'turntable_radius': 2,
+            'turntable_movement': {
+                'step_begin': turntable_start,
+                'step_end': turntable_start + 10,
+                'rotation_y': 5,
+            }
+        }],
+        'placers': [{
+            'num': 1,
+            'activation_step': placer_start,
+            "deactivation_step": placer_start + 10,
+            'end_height': 0
+        }]
+    })
+    ObjectRepository.get_instance().clear()
+    scene = structural_component.update_ile_scene(scene)
+    scene = agent_component.update_ile_scene(scene)
     return scene
