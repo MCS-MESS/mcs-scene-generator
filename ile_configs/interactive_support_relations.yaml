@@ -42,7 +42,7 @@ placers:
           # partially over the platform, or not over the platform at all.
           x: [-2.25, -1.25, -0.75, -0.25, 0, 0, 0.25, 0.75, 1.25, 2.25]
           # Ensure the container has room above it for the target object.
-          y: 7.305
+          y: 6.705
           z: 0.75
       placed_object_rotation: [0, 180]
       placed_object_scale: 0.75
